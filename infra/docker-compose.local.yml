@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: circlecue-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  temporal:
+    image: temporalio/admin-tools:latest
+    container_name: circlecue-temporal
+    command: temporal server start-dev --ip 0.0.0.0 --ui-port 8233
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: circlecue-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # Note: run `docker exec -it circlecue-ollama ollama pull gemma2:2b` or `gemma2:9b` for local Gemma inference.
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: circlecue-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=development
+      - MONGODB_URI=mongodb://mongo:27017/circlecue
+      - TEMPORAL_ADDRESS=temporal:7233
+      - AI_PROVIDER=ollama
+      - AI_BASE_URL=http://ollama:11434/v1
+      - AI_MODEL=gemma2:2b
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: circlecue-web
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+
+volumes:
+  mongo_data:
+  ollama_data:

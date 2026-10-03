@@ -1,0 +1,67 @@
+/* Generated from design/DESIGN.md. Single source of truth for visual tokens.
+   Never write hex values or px radii anywhere else in the codebase. */
+:root {
+  /* colors */
+  --primary: #0066cc;
+  --primary-focus: #0071e3;
+  --primary-on-dark: #2997ff;
+  --ink: #1d1d1f;
+  --body: #1d1d1f;
+  --body-on-dark: #ffffff;
+  --body-muted: #cccccc;
+  --ink-muted-80: #333333;
+  --ink-muted-48: #7a7a7a;
+  --divider-soft: #f0f0f0;
+  --hairline: #e0e0e0;
+  --canvas: #ffffff;
+  --canvas-parchment: #f5f5f7;
+  --surface-pearl: #fafafc;
+  --surface-tile-1: #272729;
+  --surface-tile-2: #2a2a2c;
+  --surface-tile-3: #252527;
+  --surface-black: #000000;
+  --surface-chip-translucent: rgba(210, 210, 215, 0.64);
+  --on-primary: #ffffff;
+  --on-dark: #ffffff;
+  /* APP EXTENSION (D9): destructive/error text+icon only, never fills or CTAs */
+  --danger: #d70015;
+
+  /* radius */
+  --r-none: 0; --r-xs: 5px; --r-sm: 8px; --r-md: 11px; --r-lg: 18px; --r-pill: 9999px;
+
+  /* spacing */
+  --s-xxs: 4px; --s-xs: 8px; --s-sm: 12px; --s-md: 17px; --s-lg: 24px; --s-xl: 32px; --s-xxl: 48px; --s-section: 80px;
+
+  /* the ONLY shadow: photographic imagery resting on a surface */
+  --product-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px 0;
+
+  --font-display: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  --font-text: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+}
+
+html { font-family: var(--font-text); color: var(--body); background: var(--canvas); }
+
+/* typography ladder: weights 300/400/600 (+700 tagline only). NEVER 500. */
+.t-hero-display { font: 600 56px/1.07 var(--font-display); letter-spacing: -0.28px; }
+.t-display-lg   { font: 600 40px/1.1 var(--font-display); letter-spacing: 0; }
+.t-display-md   { font: 600 34px/1.47 var(--font-text); letter-spacing: -0.374px; }
+.t-lead         { font: 400 28px/1.14 var(--font-display); letter-spacing: 0.196px; }
+.t-lead-airy    { font: 300 24px/1.5 var(--font-text); }
+.t-tagline      { font: 600 21px/1.19 var(--font-display); letter-spacing: 0.231px; }
+.t-body-strong  { font: 600 17px/1.24 var(--font-text); letter-spacing: -0.374px; }
+.t-body         { font: 400 17px/1.47 var(--font-text); letter-spacing: -0.374px; }
+.t-caption      { font: 400 14px/1.43 var(--font-text); letter-spacing: -0.224px; }
+.t-caption-strong { font: 600 14px/1.29 var(--font-text); letter-spacing: -0.224px; }
+.t-button-large { font: 300 18px/1 var(--font-text); }
+.t-fine-print   { font: 400 12px/1 var(--font-text); letter-spacing: -0.12px; }
+
+/* responsive hero ladder from DESIGN.md */
+@media (max-width: 1068px) { .t-hero-display { font-size: 40px; } }
+@media (max-width: 640px)  { .t-hero-display, .t-display-lg { font-size: 34px; } }
+@media (max-width: 419px)  { .t-hero-display, .t-display-lg { font-size: 28px; } }
+
+/* interaction grammar: press = scale(0.95); focus = 2px primary-focus outline. No hover docs. */
+.pressable:active { transform: scale(0.95); }
+:focus-visible { outline: 2px solid var(--primary-focus); outline-offset: 2px; }
+.product-shadow { box-shadow: var(--product-shadow); } /* photos only */
+.frosted { background: rgba(245, 245, 247, 0.8); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
