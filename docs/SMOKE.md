@@ -37,6 +37,8 @@ Manual smoke steps for verification.
 1. Sign in and open `/me/schedule`; confirm existing schedule slots load. Add one slot and confirm it appears after save; edit/remove through the schedule controls and confirm changes remain after reload.
 2. Open `/me/exam`; confirm existing exam sets load. Add an exam, edit its subject/time/buffers, save, and confirm the same date's set updates after reload.
 3. Open Quick Update, parse text with a missing field (for example a travel destination), answer every missing question, choose **Update Draft & Review**, then confirm the refreshed draft. Confirm incomplete drafts cannot be applied and API errors are visible in the form.
+4. From an account that received a pending connection, open `/people`; confirm the requester's name is shown, accept the request, and verify both accounts show the active connection.
+5. Open Quick Update and parse `I will be studying by 6 pm`; confirm the API accepts the request, shows a study draft, and confirmation returns a saved record.
 
 ## M06: AI drafts
 1. Register an owner in `Asia/Kolkata`; connect a second account and add a schedule template.

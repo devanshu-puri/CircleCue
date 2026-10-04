@@ -81,7 +81,10 @@ export default function ScheduleCardPage() {
         },
         visibility: { mode: "inherit" },
       };
-      await saveSchedule([...templates, newTemplate]);
+      const nextTemplates = editingTemplate
+        ? templates.map((template) => template._id === editingTemplate._id ? newTemplate : template)
+        : [...templates, newTemplate];
+      await saveSchedule(nextTemplates);
       setError(null);
       setModalOpen(false);
       setTitle("");

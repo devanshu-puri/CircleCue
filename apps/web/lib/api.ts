@@ -77,8 +77,8 @@ export interface UserProfile {
 }
 
 export interface Connection {
-  _id: string;
-  id?: string;
+  _id?: string;
+  id: string;
   a: string;
   b: string;
   status: "pending" | "active" | "blocked";
@@ -86,9 +86,10 @@ export interface Connection {
   other_user?: {
     id: string;
     name: string;
-    user_code: string;
+    user_code?: string;
     avatar_url?: string | null;
   };
+  target_user?: Connection["other_user"];
   created_at?: string;
 }
 
@@ -180,7 +181,10 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
       const rawText = await response.text();
       try {
         const errObj = JSON.parse(rawText);
-        errorDetail = typeof errObj === "string" ? errObj : errObj.message || errObj.detail || JSON.stringify(errObj);
+        const apiError = errObj.error;
+        errorDetail = typeof errObj === "string"
+          ? errObj
+          : errObj.message || errObj.detail || apiError?.message || JSON.stringify(errObj);
       } catch {
         errorDetail = rawText;
       }
@@ -277,7 +281,12 @@ export async function getViewerState(userId: string): Promise<ViewerState | null
 // ----------------- Connections -----------------
 export async function getConnections(): Promise<Connection[]> {
   try {
-    return await fetchJson<Connection[]>("/api/connections");
+    const records = await fetchJson<Connection[]>("/api/connections");
+    return records.map((connection) => ({
+      ...connection,
+      _id: connection.id || connection._id,
+      other_user: connection.other_user || connection.target_user,
+    }));
   } catch {
     return [];
   }
@@ -360,7 +369,7 @@ export async function deleteCard(cardType: string, cardId: string, version: numb
 }
 
 // ----------------- AI Parsing & Confirmation -----------------
-export async function parseText(text: string, mode: string = "auto"): Promise<ParseResult> {
+export async function parseText(text: string, mode: string = "activity"): Promise<ParseResult> {
   return fetchJson<ParseResult>("/api/ai/parse", {
     method: "POST",
     body: JSON.stringify({

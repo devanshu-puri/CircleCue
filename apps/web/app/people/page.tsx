@@ -155,7 +155,7 @@ export default function PeoplePage() {
             <div className="flex flex-col gap-3">
               {pendingConnections.map((conn) => (
                 <div
-                  key={conn._id}
+                  key={conn.id || conn._id}
                   className="flex items-center justify-between rounded-[var(--r-md)] bg-[var(--canvas)] p-3 border border-[var(--hairline)]"
                 >
                   <div className="flex items-center gap-3">
@@ -167,13 +167,13 @@ export default function PeoplePage() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleRespond(conn._id, true)}
+                      onClick={() => handleRespond(conn.id || conn._id || "", true)}
                       className="rounded-[var(--r-pill)] bg-[var(--primary)] px-3 py-1 text-[13px] font-semibold text-[var(--on-primary)] active:scale-[0.95]"
                     >
                       Accept
                     </button>
                     <button
-                      onClick={() => handleRespond(conn._id, false)}
+                      onClick={() => handleRespond(conn.id || conn._id || "", false)}
                       className="rounded-[var(--r-pill)] border border-[var(--hairline)] bg-[var(--canvas)] px-3 py-1 text-[13px] text-[var(--ink-muted-80)] active:scale-[0.95]"
                     >
                       Decline
@@ -210,7 +210,7 @@ export default function PeoplePage() {
             <div className="flex flex-col gap-2">
               {activeConnections.map((conn) => (
                 <div
-                  key={conn._id}
+                  key={conn.id || conn._id}
                   onClick={() => handleSelectConnection(conn)}
                   className="flex items-center justify-between rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] p-3 cursor-pointer transition-transform active:scale-[0.98]"
                 >
