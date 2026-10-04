@@ -26,16 +26,20 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    if settings.SENTRY_DSN:
-        sentry_sdk.init(
-            dsn=settings.SENTRY_DSN,
-            environment=settings.ENV,
-            integrations=[
-                FastApiIntegration(),
-            ],
-            traces_sample_rate=1.0 if settings.ENV == "development" else 0.1,
-        )
-        sentry_sdk.set_tag("module", "api")
+    dsn = (settings.SENTRY_DSN or "").strip()
+    if dsn and dsn.lower() not in ("none", "null", "false") and dsn.startswith("http") and "examplePublicKey" not in dsn:
+        try:
+            sentry_sdk.init(
+                dsn=dsn,
+                environment=settings.ENV,
+                integrations=[
+                    FastApiIntegration(),
+                ],
+                traces_sample_rate=1.0 if settings.ENV == "development" else 0.1,
+            )
+            sentry_sdk.set_tag("module", "api")
+        except Exception as e:
+            logger.warning("Failed to initialize Sentry DSN '%s': %s", dsn, e)
 
     if settings.DEMO_CLOCK:
         set_global_clock(DemoClock())
