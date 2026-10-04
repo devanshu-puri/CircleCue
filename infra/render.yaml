@@ -3,19 +3,25 @@ services:
     name: circlecue-web
     env: node
     plan: free
-    buildCommand: cd apps/web && npm ci && npm run build
-    startCommand: cd apps/web && npm start
+    rootDir: apps/web
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://circlecue-api.onrender.com
+      - key: NODE_VERSION
+        value: "20"
 
   - type: web
     name: circlecue-api
     env: python
     plan: free
-    buildCommand: cd apps/api && pip install -r requirements.txt
-    startCommand: cd apps/api && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: apps/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.8"
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
@@ -32,12 +38,3 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
-
-# Note: Render requires a credit card on file for background worker instances (`type: worker`).
-# If you add a payment card to Render (it won't charge, just $1 temp authorization), uncomment the worker below:
-#  - type: worker
-#    name: circlecue-worker
-#    env: python
-#    plan: starter
-#    buildCommand: cd apps/api && pip install -r requirements.txt
-#    startCommand: cd apps/api && python -m app.workflows.worker
