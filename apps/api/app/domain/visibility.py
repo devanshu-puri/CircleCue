@@ -137,6 +137,8 @@ def project(
             reachability=None,
             phone=None,
             current_place=None,
+            card_access={},
+            messages=[],
             travel=None,
             exam=None,
             last_shared_context=None,
@@ -153,6 +155,8 @@ def project(
             reachability=None,
             phone=None,
             current_place=None,
+            card_access={},
+            messages=[],
             travel=None,
             exam=None,
             last_shared_context=None,
@@ -258,6 +262,7 @@ def project(
         reachability=projected_reachability,
         phone=projected_phone,
         current_place=(resolved.current_place if travel_level == AccessLevel.DETAILS else None),
+        card_access=grant.cards.model_dump(mode="json"),
         travel=projected_travel,
         exam=projected_exam,
         last_shared_context=(
@@ -293,7 +298,41 @@ async def state_for_viewer(
     resolved = await resolved_state_for_owner(db, owner_id, now)
     if not resolved:
         return None
-    return project(resolved, grant, now, viewer_id)
+    viewer_state = project(resolved, grant, now, viewer_id)
+    message_level = grant.cards.message
+    if (
+        not viewer_state.sharing_paused
+        and message_level != AccessLevel.NONE
+    ):
+        message_docs = await db.messages.find({"owner": owner_id}).to_list(length=1000)
+        visible_messages = []
+        for message in message_docs:
+            expires_at = message.get("expires_at")
+            if isinstance(expires_at, str):
+                expires_at = datetime.fromisoformat(expires_at)
+            if isinstance(expires_at, datetime) and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at is None or expires_at <= now:
+                continue
+            audience = message.get("audience")
+            if not audience and message_level != AccessLevel.DETAILS:
+                continue
+            if audience and viewer_id not in audience:
+                continue
+            projected_message = {
+                "id": str(message.get("_id", "")),
+                "expires_at": expires_at.isoformat(),
+            }
+            if message_level == AccessLevel.DETAILS:
+                projected_message["text"] = message.get("text", "")
+                if message.get("promise_at"):
+                    promise_at = message["promise_at"]
+                    projected_message["promise_at"] = (
+                        promise_at.isoformat() if isinstance(promise_at, datetime) else promise_at
+                    )
+            visible_messages.append(projected_message)
+        viewer_state.messages = visible_messages
+    return viewer_state
 
 
 async def resolved_state_for_owner(

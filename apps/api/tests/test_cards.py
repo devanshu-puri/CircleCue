@@ -488,6 +488,12 @@ def test_message_reaction_requires_audience_grant_and_current_version():
     assert message.status_code == 201
     message_id = message.json()["id"]
 
+    broadcast = owner.post("/cards/message", json={"text": "Running late, call after 6"})
+    assert broadcast.status_code == 201
+    assert broadcast.json()["record"]["audience"] == [viewer_data["id"]]
+    viewer_messages = viewer.get(f"/state/{owner_data['id']}").json()["messages"]
+    assert any(item.get("text") == "Running late, call after 6" for item in viewer_messages)
+
     reaction = viewer.post(f"/cards/messages/{message_id}/reactions", json={
         "reaction": "OK",
         "version": 1,

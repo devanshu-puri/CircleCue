@@ -33,6 +33,13 @@ export interface ViewerState {
     battery_pct?: number | null;
   } | null;
   current_place?: string | null;
+  card_access?: Partial<CardGrants>;
+  messages?: Array<{
+    id: string;
+    text?: string;
+    expires_at: string;
+    promise_at?: string;
+  }>;
   travel?: {
     destination?: string;
     eta?: string | null;
@@ -283,6 +290,28 @@ export async function getViewerState(userId: string): Promise<ViewerState | null
     return await fetchJson<ViewerState>(`/api/state/${userId}`);
   } catch (error) {
     console.warn(`state/${userId} error`, error);
+    return null;
+  }
+}
+
+export interface ViewerTimeline {
+  date: string;
+  tz: string;
+  sharing_paused?: boolean;
+  segments: Array<{
+    start: string;
+    end: string;
+    activity_type: string;
+    label: string;
+    calls?: string;
+    calls_ok?: boolean;
+  }>;
+}
+
+export async function getViewerTimeline(userId: string): Promise<ViewerTimeline | null> {
+  try {
+    return await fetchJson<ViewerTimeline>(`/api/timeline/${userId}`);
+  } catch {
     return null;
   }
 }

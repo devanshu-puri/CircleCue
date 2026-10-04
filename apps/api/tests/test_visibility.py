@@ -8,6 +8,7 @@ from app.domain.models import (
 )
 from app.domain.visibility import (
     is_grant_active, can_view, project, activity_card_for_type, viewers_for,
+    state_for_viewer,
 )
 
 def test_is_grant_active():
@@ -232,6 +233,55 @@ def test_project_status_vs_details_levels():
     grant_details = Grant(owner="u1", viewer="u2", cards=CardGrants(travel=AccessLevel.DETAILS))
     details_state = project(resolved, grant_details, now, viewer_id="u2")
     assert details_state.current_place == "Library"
+
+
+@pytest.mark.asyncio
+async def test_state_for_viewer_projects_only_unexpired_targeted_messages_by_grant(mock_db):
+    now = datetime.now(timezone.utc)
+    await mock_db.users.insert_one({
+        "_id": "owner", "name": "Sagar", "tz": "UTC",
+        "routine_prefs": {"wake": "07:00", "sleep": "23:00"},
+    })
+    await mock_db.connections.insert_one({
+        "_id": "connection", "a": "owner", "b": "viewer", "status": "active",
+    })
+    details_cards = CardGrants(message=AccessLevel.DETAILS)
+    grant = {
+        "_id": "grant", "owner": "owner", "viewer": "viewer",
+        "cards": details_cards.model_dump(mode="json"), "revoked_at": None,
+    }
+    await mock_db.grants.insert_one(grant)
+    await mock_db.messages.insert_one({
+        "_id": "sent-to-viewer", "owner": "owner", "audience": [],
+        "text": "Call me after class", "expires_at": now + timedelta(hours=1),
+    })
+    await mock_db.messages.insert_one({
+        "_id": "sent-to-someone-else", "owner": "owner", "audience": ["other"],
+        "text": "Private note", "expires_at": now + timedelta(hours=1),
+    })
+    await mock_db.messages.insert_one({
+        "_id": "expired", "owner": "owner", "audience": ["viewer"],
+        "text": "Old note", "expires_at": now - timedelta(seconds=1),
+    })
+
+    state = await state_for_viewer(mock_db, "owner", "viewer", now)
+    assert state is not None
+    assert [message.get("text") for message in state.messages] == ["Call me after class"]
+    assert state.card_access["message"] == "details"
+
+    await mock_db.grants.update_one({"_id": "grant"}, {"$set": {
+        "cards": CardGrants(message=AccessLevel.STATUS).model_dump(mode="json")
+    }})
+    status_state = await state_for_viewer(mock_db, "owner", "viewer", now)
+    assert status_state is not None
+    assert status_state.messages == []
+
+    await mock_db.grants.update_one({"_id": "grant"}, {"$set": {
+        "cards": CardGrants().model_dump(mode="json")
+    }})
+    hidden_state = await state_for_viewer(mock_db, "owner", "viewer", now)
+    assert hidden_state is not None
+    assert hidden_state.messages == []
 
 def test_project_private_label_and_visibility_only():
     now = datetime.now(timezone.utc)

@@ -21,9 +21,11 @@ import {
   respondToConnection,
   removeConnection,
   getViewerState,
+  getViewerTimeline,
   type Connection,
   type UserProfile,
   type ViewerState,
+  type ViewerTimeline,
 } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 
@@ -36,6 +38,7 @@ export default function PeoplePage() {
   // Detail Sheet State
   const [selectedUser, setSelectedUser] = useState<Connection["other_user"] | null>(null);
   const [viewerState, setViewerState] = useState<ViewerState | null>(null);
+  const [viewerTimeline, setViewerTimeline] = useState<ViewerTimeline | null>(null);
   const [loadingState, setLoadingState] = useState(false);
 
   // Add Person Sheet State
@@ -66,10 +69,14 @@ export default function PeoplePage() {
     if (!conn.other_user) return;
     setSelectedUser(conn.other_user);
     setViewerState(null);
+    setViewerTimeline(null);
     setLoadingState(true);
     try {
       const st = await getViewerState(conn.other_user.id);
       setViewerState(st);
+      if (st?.card_access?.schedule && st.card_access.schedule !== "none") {
+        setViewerTimeline(await getViewerTimeline(conn.other_user.id));
+      }
     } catch {
       // Ignored
     } finally {
@@ -267,11 +274,14 @@ export default function PeoplePage() {
                 )}
               </div>
               <h3 className="mt-2 text-[22px] font-semibold">
-                {viewerState?.activity?.label || viewerState?.activity?.type || "Available"}
+                {viewerState?.sharing_paused
+                  ? "Sharing paused"
+                  : viewerState?.activity?.label || viewerState?.activity?.type || (viewerState?.reachability ? (viewerState.reachability.calls === "no" ? "Busy" : "Available") : "Status not shared")}
               </h3>
               <p className="mt-1 text-[14px] opacity-85">
-                {viewerState?.reachability?.reason ||
-                  (viewerState?.reachability?.calls === "no" ? "Calls: not now" : "Calls: ok")}
+                {viewerState?.reachability
+                  ? `Calls: ${viewerState.reachability.calls || "ok"} · Messages: ${viewerState.reachability.messages || "ok"}${viewerState.reachability.until ? ` · Until ${new Date(viewerState.reachability.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                  : viewerState?.sharing_paused ? "No details are shared while sharing is paused." : "Live availability hasn’t been shared with you."}
               </p>
             </Tile>
 
@@ -280,20 +290,53 @@ export default function PeoplePage() {
               <div className="rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] p-3">
                 <p className="font-semibold">Phone</p>
                 <p className="text-[var(--ink-muted-80)]">
-                  {viewerState?.phone?.mode === "silent"
-                    ? "Silent"
-                    : viewerState?.phone?.battery_pct
-                    ? `${viewerState.phone.battery_pct}%`
-                    : "Normal"}
+                  {viewerState?.phone
+                    ? `${viewerState.phone.mode === "silent" ? "On Silent" : viewerState.phone.mode === "dnd" ? "On Do Not Disturb" : "On ring"}${viewerState.phone.battery_pct != null ? ` · ${viewerState.phone.battery_pct}%` : viewerState.phone.battery_bucket ? ` · Battery ${viewerState.phone.battery_bucket}` : ""}`
+                    : "Not shared"}
                 </p>
               </div>
               <div className="rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] p-3">
                 <p className="font-semibold">Travel</p>
                 <p className="text-[var(--ink-muted-80)]">
-                  {viewerState?.travel ? viewerState.travel.destination || "Travelling" : "At home"}
+                  {viewerState?.travel?.destination || (viewerState?.travel ? "Travelling" : viewerState?.current_place || (["status", "details"].includes(viewerState?.card_access?.travel || "none") ? "No active journey" : "Not shared"))}
                 </p>
               </div>
             </div>
+
+            {viewerState?.messages && viewerState.messages.length > 0 && (
+              <Tile tone="parchment" className="p-4">
+                <h3 className="mb-2 text-[15px] font-semibold text-[var(--ink)]">Dropped messages</h3>
+                <div className="flex flex-col gap-2">
+                  {viewerState.messages.map((message) => (
+                    <div key={message.id} className="rounded-[var(--r-sm)] bg-[var(--canvas)] p-3">
+                      <p className="text-[14px] text-[var(--ink)]">{message.text || "Shared a note with you."}</p>
+                      {message.promise_at && <p className="mt-1 text-[12px] text-[var(--ink-muted-80)]">Promise by {new Date(message.promise_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>}
+                      <p className="mt-1 text-[11px] text-[var(--ink-muted-48)]">Expires {new Date(message.expires_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>
+                    </div>
+                  ))}
+                </div>
+              </Tile>
+            )}
+
+            {viewerState?.card_access?.schedule && viewerState.card_access.schedule !== "none" && (
+              <Tile tone="parchment" className="p-4">
+                <h3 className="mb-2 text-[15px] font-semibold text-[var(--ink)]">Today’s schedule</h3>
+                {viewerTimeline?.sharing_paused ? (
+                  <p className="text-[14px] text-[var(--ink-muted-80)]">Sharing paused.</p>
+                ) : viewerTimeline?.segments.length ? (
+                  <div className="flex flex-col gap-2">
+                    {viewerTimeline.segments.map((segment) => (
+                      <div key={`${segment.start}-${segment.end}`} className="flex justify-between gap-3 rounded-[var(--r-sm)] bg-[var(--canvas)] p-2 text-[13px]">
+                        <span className="font-semibold text-[var(--ink)]">{segment.label}</span>
+                        <span className="shrink-0 text-[var(--ink-muted-80)]">{new Date(segment.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–{new Date(segment.end).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[14px] text-[var(--ink-muted-80)]">No scheduled slots today.</p>
+                )}
+              </Tile>
+            )}
 
             {/* Action buttons */}
             <div className="flex gap-2 pt-2">

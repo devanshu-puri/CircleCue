@@ -100,6 +100,8 @@ export default function HomePage() {
   const [confirming, setConfirming] = useState(false);
   const [composeSuccess, setComposeSuccess] = useState(false);
   const [finishingActivity, setFinishingActivity] = useState(false);
+  const [activeStatusEntries, setActiveStatusEntries] = useState<any[]>([]);
+  const [finishingStatusId, setFinishingStatusId] = useState<string | null>(null);
   const [placeOpen, setPlaceOpen] = useState(false);
   const [placeValue, setPlaceValue] = useState("");
   const [customPlace, setCustomPlace] = useState("");
@@ -108,9 +110,18 @@ export default function HomePage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [nextState, nextNotifications] = await Promise.all([getMyState(), getNotifications()]);
+      const [nextState, nextNotifications, liveCards] = await Promise.all([
+        getMyState(),
+        getNotifications(),
+        getCards("live").catch(() => []),
+      ]);
       setState(nextState);
       setNotifications(nextNotifications);
+      const liveItems = Array.isArray(liveCards) ? liveCards : [];
+      setActiveStatusEntries(liveItems
+        .filter((item: any) => ["ACTIVE", "EXTENDED", "DELAYED", "CHANGED"].includes(item.status))
+        .filter((item: any) => !item.expected_end_at || new Date(item.expected_end_at).getTime() > Date.now())
+        .sort((a: any, b: any) => new Date(a.expected_end_at || "9999-12-31").getTime() - new Date(b.expected_end_at || "9999-12-31").getTime()));
       setError(null);
     } catch (caught: any) {
       setError(caught.message || "Unable to load state");
@@ -157,6 +168,21 @@ export default function HomePage() {
       setError(caught.message || "Could not finish this update.");
     } finally {
       setFinishingActivity(false);
+    }
+  }
+
+  async function handleFinishStatusEntry(entry: any) {
+    const id = entry._id || entry.id;
+    if (!id) return;
+    setFinishingStatusId(id);
+    setError(null);
+    try {
+      await updateCard("live", id, { status: "COMPLETED", version: entry.version || 1 });
+      await loadData();
+    } catch (caught: any) {
+      setError(caught.message || "Could not remove this active status.");
+    } finally {
+      setFinishingStatusId(null);
     }
   }
 
@@ -326,6 +352,45 @@ export default function HomePage() {
               📍 {state?.current_place || "At home"}
             </Chip>
           </div>
+        </Tile>
+
+        <Tile tone="light" className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[17px] font-semibold text-[var(--ink)]">Active Status Log</h2>
+            <span className="text-[12px] text-[var(--ink-muted-48)]">{activeStatusEntries.length}</span>
+          </div>
+          {activeStatusEntries.length === 0 ? (
+            <p className="py-3 text-[14px] text-[var(--ink-muted-48)]">No active status updates.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {activeStatusEntries.map((entry: any) => {
+                const id = entry._id || entry.id;
+                const until = entry.expected_end_at
+                  ? new Date(entry.expected_end_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                  : null;
+                return (
+                  <div key={id} className="flex min-h-14 items-center justify-between gap-3 rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[15px] font-semibold text-[var(--ink)]">{readableText(entry.title || entry.type || "Status update")}</p>
+                      <p className="text-[12px] text-[var(--ink-muted-48)]">
+                        {until ? `Until ${until}` : "Active"}{entry.availability?.calls === "no" ? " · Calls: no" : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      title="Remove this active status"
+                      aria-label={`Remove ${readableText(entry.title || entry.type || "status update")}`}
+                      disabled={finishingStatusId === id}
+                      onClick={() => handleFinishStatusEntry(entry)}
+                      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-[var(--r-pill)] text-[22px] font-normal text-[var(--danger)] transition-transform hover:bg-[var(--surface-chip-translucent)] active:scale-[0.95] disabled:opacity-50"
+                    >
+                      {finishingStatusId === id ? "…" : "×"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Tile>
 
         {/* 4 Cards Quick Grid */}

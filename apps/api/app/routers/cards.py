@@ -21,7 +21,7 @@ from app.domain.models import (
     ExamSet, ExceptionItem, Message, PhoneState, Status, Template, TravelMeta,
     TravelPhase,
 )
-from app.domain.visibility import can_view_for_connection, resolved_state_for_owner
+from app.domain.visibility import can_view_for_connection, resolved_state_for_owner, viewers_for
 from app.cards.registry import CARD_REGISTRY
 
 router = APIRouter(prefix="/cards", tags=["cards"])
@@ -415,6 +415,11 @@ async def create_card(
             data.setdefault("text", template_text)
         if not data.get("expires_at"):
             data["expires_at"] = now + timedelta(hours=12)
+        if not data.get("audience"):
+            # An empty audience is the UI's “all granted connections” option.
+            data["audience"] = await viewers_for(
+                db, current_user_id, CardKey.MESSAGE, AccessLevel.DETAILS, now
+            )
         for viewer_id in data.get("audience", []):
             if not await can_view_for_connection(
                 db,
@@ -607,6 +612,10 @@ async def update_card(
             raise StateConflictError("Card version is stale")
         merged = {**existing, **updates}
         merged["version"] = current_version + 1
+        if spec.record_model is Message and not merged.get("audience"):
+            merged["audience"] = await viewers_for(
+                db, current_user_id, CardKey.MESSAGE, AccessLevel.DETAILS, now
+            )
         if spec.record_model is PhoneState:
             merged.pop("owner", None)
             merged["_id"] = current_user_id

@@ -490,6 +490,8 @@ class ViewerState(BaseModel):
     reachability: Optional[ReachabilityResolved] = None
     phone: Optional[Dict[str, Any]] = None
     current_place: Optional[str] = None
+    card_access: Dict[str, str] = Field(default_factory=dict)
+    messages: List[Dict[str, Any]] = Field(default_factory=list)
     travel: Optional[Dict[str, Any]] = None
     exam: Optional[Dict[str, Any]] = None
     last_shared_context: Optional[ContextSnapshot] = None
