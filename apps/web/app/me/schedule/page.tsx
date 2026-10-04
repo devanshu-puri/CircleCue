@@ -70,7 +70,7 @@ export default function ScheduleCardPage() {
         ...(editingTemplate || {}),
         kind: "SCHEDULE_SLOT",
         title,
-        activity_type: "LECTURE",
+        activity_type: "CLASS",
         days,
         start_local: startTime,
         end_local: endTime,
