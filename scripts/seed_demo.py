@@ -228,7 +228,7 @@ def main():
 
     #  Arjun's exam set (Oct 5) 
     print("6/10  Creating Arjun's exam set for Oct 5...")
-    arjun_post("/cards/exam/season", {
+    arjun_post("/cards/exam", {
         "date": "2026-10-05",
         "items": [
             {
