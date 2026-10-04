@@ -6,6 +6,11 @@ Log architectural decisions here as key trade-offs are evaluated during executio
 - Keep it CSS-only, token-colored, and accessible with a stable screen-reader phrase; users who request reduced motion see the static Friends wording.
 - No route, data, permission, or notification behavior changes.
 
+## D33 — Public read-only demo session (2026-10-04)
+- Let visitors explore a configured seeded demo user through a public `/auth/demo` endpoint. `DEMO_USER_EMAIL` selects the account.
+- Sign a `read_only_demo` claim into the JWT and enforce it centrally in FastAPI middleware for every non-auth write method. UI guards and the persistent CTA banner are convenience only; API enforcement is authoritative.
+- Permit demo entry, login, registration, and logout so a visitor can switch to a real account. No new database collection or user role field is introduced.
+
 ## D31 — Make the handoff pack agent-neutral (2026-10-04)
 - Rename the repository's `antigravity-pack/` directory to `agent_pack/` and remove tool-specific setup language so the same project memory, rules, design references, and module prompts can be used across coding agents.
 - Migration note: update path references in the start guide and continuation prompt. The pack is reference material; the active source of truth remains root `AGENTS.md` and `docs/MEMORY.md`. No application imports or runtime paths depend on this directory.

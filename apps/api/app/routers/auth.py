@@ -29,6 +29,7 @@ class AuthResponse(BaseModel):
     user_code: str
     tz: str
     token: Optional[str] = None
+    read_only: bool = False
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(req: RegisterRequest, response: Response, request: Request):
@@ -132,6 +133,46 @@ async def login(req: LoginRequest, response: Response, request: Request):
         user_code=user["user_code"],
         tz=user.get("tz", "UTC"),
         token=token
+    )
+
+
+@router.post(
+    "/demo",
+    response_model=AuthResponse,
+    summary="Start a read-only demo session",
+    description="Signs into the configured public demo account. Mutating API requests are rejected for this session.",
+)
+async def demo_login(response: Response, request: Request):
+    from app.config import settings
+
+    if not settings.DEMO_USER_EMAIL:
+        raise ValidationError(message="The demo is not available right now")
+
+    db = get_db()
+    user = await db.users.find_one({"email": settings.DEMO_USER_EMAIL.strip().lower()})
+    if not user:
+        raise ValidationError(message="The demo account is not set up yet")
+
+    user_id = str(user["_id"])
+    token = create_access_token(user_id, read_only_demo=True)
+    is_https = request.url.scheme == "https"
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=is_https,
+        samesite="none" if is_https else "lax",
+        max_age=604800,
+    )
+    await log_audit_event(actor=user_id, action="DEMO_LOGIN", target=user_id)
+    return AuthResponse(
+        id=user_id,
+        name=user["name"],
+        email=user["email"],
+        user_code=user["user_code"],
+        tz=user.get("tz", "UTC"),
+        token=token,
+        read_only=True,
     )
 
 @router.post("/logout")

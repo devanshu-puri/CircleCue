@@ -89,6 +89,13 @@ Manual smoke steps for verification.
 3. Create a timed live activity. Confirm Active Status Log lists it, remove it early, and verify its status is `COMPLETED` after reload. Leave a second item until its expected end and confirm it no longer appears once expired.
 4. Set the profile timezone to `Asia/Kolkata` while the browser uses another timezone. Confirm Today and status-log times display in the profile timezone; Today uses the active activity's own `until` time and readable label, or labels the next resolver boundary as a next change when the current activity has no end time.
 
+## M02/M10: Read-only guest demo
+1. Sign out and open `/login`. Choose **Explore read-only demo**; confirm the Today dashboard and demo account data load without asking for credentials.
+2. Confirm the view-only banner offers **Sign in** and **Create account** on dashboard, People, Alerts, and card pages.
+3. Attempt to save a live update or edit a card. Confirm the screen explains the demo is view-only and directs the visitor to sign in or create an account.
+4. Call a write API directly with the demo bearer token (for example `PATCH /me`) and confirm it returns `403 READ_ONLY_DEMO` without changing stored data. Confirm GET requests still work.
+5. Use the banner to sign in or create an account. Confirm the read-only banner disappears and a normal account can save changes.
+
 ## M09: Connection Reminders
 
 1. Register an owner. Create a connection plan via `POST /reminders/plans` with `{"target": "<peer_id>", "importance": "high", "rule": "weekly"}`. Confirm `201 Created` with `plan_id`.

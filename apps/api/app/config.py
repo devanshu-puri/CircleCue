@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     MONGODB_URI: str = "mongodb://localhost:27017/circlecue"
     JWT_SECRET: str = "super-secret-key-change-in-prod-1234567890"
     TZ_DEFAULT: str = "UTC"
+    DEMO_USER_EMAIL: Optional[str] = "arjun@demo.circlecue.app"
     
     # AI Config
     AI_PROVIDER: Literal["openai_compat", "ollama", "rules"] = "rules"

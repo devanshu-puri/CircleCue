@@ -4,13 +4,14 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tile, PillButton, InputField, Footer } from "@/components/ui";
-import { login } from "@/lib/api";
+import { login, loginDemo } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -28,6 +29,19 @@ export default function LoginPage() {
       setError(err.message || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDemo() {
+    setDemoLoading(true);
+    setError(null);
+    try {
+      await loginDemo();
+      router.push("/");
+    } catch (err: any) {
+      setError(err.message || "The demo is unavailable right now.");
+    } finally {
+      setDemoLoading(false);
     }
   }
 
@@ -75,6 +89,20 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </PillButton>
           </form>
+
+          <div className="my-5 border-t border-[var(--hairline)]" />
+          <p className="mb-3 text-center text-[14px] text-[var(--ink-muted-80)]">
+            Just looking? Explore the app without an account. Demo changes are disabled.
+          </p>
+          <PillButton
+            type="button"
+            variant="ghost"
+            disabled={demoLoading}
+            onClick={handleDemo}
+            className="w-full"
+          >
+            {demoLoading ? "Opening demo…" : "Explore read-only demo"}
+          </PillButton>
 
           <div className="mt-6 text-center text-[14px] text-[var(--ink-muted-80)]">
             Don’t have an account?{" "}

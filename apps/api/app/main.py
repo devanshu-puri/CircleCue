@@ -3,11 +3,13 @@ from contextlib import asynccontextmanager
 from typing import Dict, Any
 from fastapi import FastAPI, Depends, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 
 from app.config import settings
 from app.core.errors import setup_exception_handlers, CircleCueError
+from app.core.security import decode_access_token
 from app.clock import get_clock, Clock, DemoClock, set_global_clock
 from app.routers import auth, users, connections, grants, state, cards, ai, scenarios, notifications, dev, reminders
 
@@ -54,6 +56,43 @@ def create_app() -> FastAPI:
     )
     setup_exception_handlers(app)
 
+    @app.middleware("http")
+    async def enforce_read_only_demo(request, call_next):
+        method = request.method.upper()
+        public_auth_paths = {"/auth/demo", "/auth/login", "/auth/register", "/auth/logout"}
+        if method not in {"GET", "HEAD", "OPTIONS"} and request.url.path not in public_auth_paths:
+            token = request.cookies.get("access_token")
+            if not token:
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header.startswith("Bearer "):
+                    token = auth_header.split(" ", 1)[1]
+            if token:
+                try:
+                    payload = decode_access_token(token)
+                except CircleCueError:
+                    payload = {}
+                if payload.get("read_only_demo") is True:
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "error": {
+                                "code": "READ_ONLY_DEMO",
+                                "message": "This demo is view-only. Sign in or create an account to make changes.",
+                                "details": {},
+                            }
+                        },
+                    )
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def add_security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    # Add CORS last so it wraps the other middleware, including early demo 403 responses.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -65,14 +104,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    @app.middleware("http")
-    async def add_security_headers(request, call_next):
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        return response
 
     app.include_router(auth.router)
     app.include_router(users.router)

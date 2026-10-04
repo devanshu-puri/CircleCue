@@ -83,6 +83,7 @@ export interface UserProfile {
     active: boolean;
     until?: string | null;
   };
+  read_only?: boolean;
 }
 
 export interface Connection {
@@ -170,6 +171,13 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
   }
 
   const token = typeof window !== "undefined" ? localStorage.getItem("circlecue_token") : null;
+  const method = (init?.method || "GET").toUpperCase();
+  const authPath = input.replace(/^\/api/, "");
+  const publicAuthPath = ["/auth/demo", "/auth/login", "/auth/register", "/auth/logout"].includes(authPath);
+  if (token && isReadOnlyDemoToken(token) && !["GET", "HEAD", "OPTIONS"].includes(method) && !publicAuthPath) {
+    window.dispatchEvent(new Event("circlecue:demo-write-blocked"));
+    throw new Error("This demo is view-only. Sign in or create an account to make changes.");
+  }
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
@@ -208,6 +216,28 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+function isReadOnlyDemoToken(token: string): boolean {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return false;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(window.atob(padded)).read_only_demo === true;
+  } catch {
+    return false;
+  }
+}
+
+export function isReadOnlyDemoSession(): boolean {
+  if (typeof window === "undefined") return false;
+  const token = localStorage.getItem("circlecue_token");
+  return token ? isReadOnlyDemoToken(token) : false;
+}
+
+function notifyAuthChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("circlecue:auth-changed"));
+}
+
 // ----------------- Auth -----------------
 export async function login(email: string, password: string): Promise<UserProfile> {
   const res = await fetchJson<UserProfile & { token?: string }>("/api/auth/login", {
@@ -216,8 +246,18 @@ export async function login(email: string, password: string): Promise<UserProfil
   });
   if (typeof window !== "undefined" && res.token) {
     localStorage.setItem("circlecue_token", res.token);
+    notifyAuthChanged();
   }
   return res;
+}
+
+export async function loginDemo(): Promise<UserProfile> {
+  const res = await fetchJson<UserProfile & { token?: string }>("/api/auth/demo", { method: "POST" });
+  if (typeof window !== "undefined" && res.token) {
+    localStorage.setItem("circlecue_token", res.token);
+    notifyAuthChanged();
+  }
+  return { ...res, read_only: true };
 }
 
 export async function register(
@@ -232,6 +272,7 @@ export async function register(
   });
   if (typeof window !== "undefined" && res.token) {
     localStorage.setItem("circlecue_token", res.token);
+    notifyAuthChanged();
   }
   return res;
 }
@@ -239,6 +280,7 @@ export async function register(
 export async function logout(): Promise<void> {
   if (typeof window !== "undefined") {
     localStorage.removeItem("circlecue_token");
+    notifyAuthChanged();
   }
   await fetchJson("/api/auth/logout", { method: "POST" });
 }
