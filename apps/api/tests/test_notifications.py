@@ -147,7 +147,7 @@ async def test_live_activity_start_reaches_viewer_with_activity_opt_in(mock_db):
 
     assert len(delivered) == 1
     assert delivered[0]["to"] == "viewer"
-    assert delivered[0]["payload_redacted"]["text"] == "Studying until 8"
+    assert delivered[0]["payload_redacted"]["text"] == "Now: Studying until 8"
 
 
 @pytest.mark.asyncio
@@ -207,13 +207,12 @@ async def test_safety_notifications_bypass_daily_rate_limit(mock_db):
         "notify": {"safety": True, "free_now": True},
         "revoked_at": None, "expires_at": None,
     })
-    # Preload 2 notifications in the last 24h
-    mock_db.notifications.docs["prev-1"] = {
-        "_id": "prev-1", "to": "viewer", "about_owner": "owner", "created_at": now,
-    }
-    mock_db.notifications.docs["prev-2"] = {
-        "_id": "prev-2", "to": "viewer", "about_owner": "owner", "created_at": now,
-    }
+    # Fill the normal daily cap; urgent safety notices must still pass.
+    from app.domain.notifications import DAILY_ALERT_LIMIT
+    for index in range(DAILY_ALERT_LIMIT):
+        mock_db.notifications.docs[f"prev-{index}"] = {
+            "_id": f"prev-{index}", "to": "viewer", "about_owner": "owner", "created_at": now,
+        }
 
     # Benign free_now should be rate limited
     free_event = DomainEvent("FREE_NOW", "owner", "free-1", occurred_at=now)

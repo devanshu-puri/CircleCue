@@ -60,6 +60,15 @@ async def list_notifications(
     for notification in notifications:
         if await _can_read(db, notification, current_user_id, clock.now()):
             visible.append(notification)
+    visible.sort(
+        key=lambda item: (
+            item.get("created_at").isoformat()
+            if isinstance(item.get("created_at"), datetime)
+            else str(item.get("created_at") or ""),
+            str(item.get("_id") or ""),
+        ),
+        reverse=True,
+    )
     return visible
 
 

@@ -85,6 +85,9 @@ class NotificationKind(str, Enum):
     SCHEDULE_CHANGED = "SCHEDULE_CHANGED"
     ACTIVITY_STARTED = "ACTIVITY_STARTED"
     ACTIVITY_EXTENDED = "ACTIVITY_EXTENDED"
+    EXAM_SET_CHANGED = "EXAM_SET_CHANGED"
+    PHONE_STATE_CHANGED = "PHONE_STATE_CHANGED"
+    SAFETY_WATCH_STARTED = "SAFETY_WATCH_STARTED"
     TRAVEL_STARTED = "TRAVEL_STARTED"
     TRAVEL_DELAYED = "TRAVEL_DELAYED"
     PLAN_CHANGED = "PLAN_CHANGED"
@@ -169,6 +172,7 @@ class CardGrants(BaseModel):
 class NotifyFlags(BaseModel):
     free_now: bool = False
     activity: bool = False
+    phone: bool = False
     exam: bool = False
     travel: bool = False
     battery: bool = False

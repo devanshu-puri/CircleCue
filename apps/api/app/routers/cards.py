@@ -1,6 +1,6 @@
 """Generic owner-only card routes backed by the shared CardSpec registry."""
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
@@ -19,7 +19,7 @@ from app.domain.lifecycle_service import transition
 from app.domain.models import (
     AccessLevel, Activity, ActivityType, CardKey, ContextSnapshot,
     ExamSet, ExceptionItem, Message, PhoneState, Status, Template, TravelMeta,
-    TravelPhase,
+    TravelPhase, NotificationKind,
 )
 from app.domain.visibility import can_view_for_connection, resolved_state_for_owner, viewers_for
 from app.cards.registry import CARD_REGISTRY
@@ -63,6 +63,27 @@ def _battery_bucket(battery_pct: Any) -> str:
     if battery_pct <= 20:
         return "low"
     return "ok"
+
+
+def _phone_event_kind(before: Dict[str, Any], after: Dict[str, Any]) -> Optional[str]:
+    old_battery = before.get("battery_pct")
+    new_battery = after.get("battery_pct")
+    if isinstance(new_battery, int) and (old_battery is None or isinstance(old_battery, int)):
+        if new_battery <= 5 and (old_battery is None or old_battery > 5):
+            return NotificationKind.BATTERY_CRITICAL.value
+        if new_battery <= 10 and (old_battery is None or old_battery > 10):
+            return NotificationKind.BATTERY_LOW.value
+    if (
+        (after.get("may_go_offline") or after.get("declared_offline"))
+        and not (before.get("may_go_offline") or before.get("declared_offline"))
+    ):
+        return NotificationKind.PHONE_MAY_GO_OFFLINE.value
+    fields = ("mode", "calls", "messages", "may_go_offline", "declared_offline")
+    return (
+        NotificationKind.PHONE_STATE_CHANGED.value
+        if any(before.get(field) != after.get(field) for field in fields)
+        else None
+    )
 
 
 async def _freeze_context_if_needed(
@@ -473,12 +494,12 @@ async def create_card(
         await collection.insert_one(record)
 
     event_kinds = {
-        CardKey.SCHEDULE: "SCHEDULE_CHANGED",
-        CardKey.EXAM: "EXAM_SET_CHANGED",
-        CardKey.LIVE: "ACTIVITY_STARTED",
-        CardKey.PHONE: "PHONE_STATE_CHANGED",
-        CardKey.MESSAGE: "MESSAGE_DROP",
-        CardKey.SAFETY: "ARRIVAL_WATCH_STARTED",
+        CardKey.SCHEDULE: NotificationKind.SCHEDULE_CHANGED.value,
+        CardKey.EXAM: NotificationKind.EXAM_SET_CHANGED.value,
+        CardKey.LIVE: NotificationKind.ACTIVITY_STARTED.value,
+        CardKey.PHONE: _phone_event_kind({}, record) or NotificationKind.PHONE_STATE_CHANGED.value,
+        CardKey.MESSAGE: NotificationKind.MESSAGE_DROP.value,
+        CardKey.SAFETY: NotificationKind.SAFETY_WATCH_STARTED.value,
     }
     event_kind = event_kinds.get(spec.key, "CARD_CREATED")
     if spec.key == CardKey.TRAVEL:
@@ -603,6 +624,8 @@ async def update_card(
                 event_kind = "CARD_CHANGED"
             elif spec.key == CardKey.LIVE:
                 event_kind = "ACTIVITY_EXTENDED"
+            elif spec.key == CardKey.SAFETY:
+                event_kind = NotificationKind.SAFETY_WATCH_STARTED.value
             else:
                 event_kind = "CARD_CHANGED"
     else:
@@ -639,11 +662,11 @@ async def update_card(
         if not result.modified_count:
             raise NotFoundError("Card not found")
         event_kind = {
-            CardKey.SCHEDULE: "SCHEDULE_CHANGED",
-            CardKey.EXAM: "EXAM_SET_CHANGED",
-            CardKey.LIVE: "ACTIVITY_EXTENDED",
-            CardKey.PHONE: "PHONE_STATE_CHANGED",
-            CardKey.MESSAGE: "MESSAGE_DROP",
+            CardKey.SCHEDULE: NotificationKind.SCHEDULE_CHANGED.value,
+            CardKey.EXAM: NotificationKind.EXAM_SET_CHANGED.value,
+            CardKey.LIVE: NotificationKind.ACTIVITY_EXTENDED.value,
+            CardKey.PHONE: _phone_event_kind(existing, record) or "CARD_CHANGED",
+            CardKey.MESSAGE: NotificationKind.MESSAGE_DROP.value,
         }.get(spec.key, "CARD_CHANGED")
 
     await publish_and_process(db, DomainEvent(
@@ -711,10 +734,10 @@ async def delete_card(
         if not result.deleted_count:
             raise StateConflictError("Card changed during deletion")
         event_kind = {
-            CardKey.SCHEDULE: "SCHEDULE_CHANGED",
-            CardKey.EXAM: "EXAM_SET_CHANGED",
-            CardKey.PHONE: "PHONE_STATE_CHANGED",
-            CardKey.MESSAGE: "MESSAGE_DROP",
+            CardKey.SCHEDULE: NotificationKind.SCHEDULE_CHANGED.value,
+            CardKey.EXAM: NotificationKind.EXAM_SET_CHANGED.value,
+            CardKey.PHONE: NotificationKind.PHONE_STATE_CHANGED.value,
+            CardKey.MESSAGE: NotificationKind.MESSAGE_DROP.value,
         }.get(spec.key, "CARD_DELETED")
 
     await publish_and_process(db, DomainEvent(

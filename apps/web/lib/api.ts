@@ -115,6 +115,7 @@ export interface CardGrants {
 export interface NotifyFlags {
   free_now: boolean;
   activity: boolean;
+  phone: boolean;
   exam: boolean;
   travel: boolean;
   battery: boolean;
@@ -289,12 +290,7 @@ export async function getMyState(): Promise<ViewerState | null> {
 }
 
 export async function getViewerState(userId: string): Promise<ViewerState | null> {
-  try {
-    return await fetchJson<ViewerState>(`/api/state/${userId}`);
-  } catch (error) {
-    console.warn(`state/${userId} error`, error);
-    return null;
-  }
+  return fetchJson<ViewerState>(`/api/state/${userId}`);
 }
 
 export interface ViewerTimeline {
@@ -321,16 +317,12 @@ export async function getViewerTimeline(userId: string): Promise<ViewerTimeline 
 
 // ----------------- Connections -----------------
 export async function getConnections(): Promise<Connection[]> {
-  try {
-    const records = await fetchJson<Connection[]>("/api/connections");
-    return records.map((connection) => ({
-      ...connection,
-      _id: connection.id || connection._id,
-      other_user: connection.other_user || connection.target_user,
-    }));
-  } catch {
-    return [];
-  }
+  const records = await fetchJson<Connection[]>("/api/connections");
+  return records.map((connection) => ({
+    ...connection,
+    _id: connection.id || connection._id,
+    other_user: connection.other_user || connection.target_user,
+  }));
 }
 
 export async function lookupUser(code: string): Promise<UserProfile> {
@@ -355,11 +347,7 @@ export async function removeConnection(connectionId: string): Promise<void> {
 
 // ----------------- Grants -----------------
 export async function getGrants(): Promise<Grant[]> {
-  try {
-    return await fetchJson<Grant[]>("/api/grants");
-  } catch {
-    return [];
-  }
+  return fetchJson<Grant[]>("/api/grants/outgoing");
 }
 
 export async function getGrant(connectionId: string): Promise<Grant | null> {
@@ -434,15 +422,11 @@ export async function confirmDraft(items: any[], draftId?: string): Promise<any>
 
 // ----------------- Notifications -----------------
 export async function getNotifications(): Promise<NotificationItem[]> {
-  try {
-    return await fetchJson<NotificationItem[]>("/api/notifications");
-  } catch {
-    return [];
-  }
+  return fetchJson<NotificationItem[]>("/api/notifications");
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  await fetchJson(`/api/notifications/${id}/read`, { method: "PATCH" });
+  await fetchJson(`/api/notifications/${id}/read`, { method: "POST" });
 }
 
 export function subscribeToNotifications(
@@ -460,7 +444,6 @@ export function subscribeToNotifications(
   };
   source.onerror = () => {
     onError?.();
-    source.close();
   };
   return source;
 }

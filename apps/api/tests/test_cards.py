@@ -197,7 +197,14 @@ def test_critical_phone_update_freezes_resolved_context():
     assert phone["last_shared_context"]["shared_at"]
 
 
-def test_phone_patch_recomputes_bucket_and_context_snapshot():
+def test_phone_patch_recomputes_bucket_and_context_snapshot(monkeypatch):
+    events = []
+
+    async def capture_event(_db, event, _now):
+        events.append(event)
+        return []
+
+    monkeypatch.setattr(cards_router, "publish_and_process", capture_event)
     client = TestClient(app)
     register = client.post("/auth/register", json={
         "name": "Phone Owner",
@@ -222,6 +229,7 @@ def test_phone_patch_recomputes_bucket_and_context_snapshot():
     assert updated.json()["record"]["battery_bucket"] == "dying"
     assert updated.json()["record"]["last_shared_context"] is not None
     assert updated.json()["record"]["version"] == 2
+    assert events[-1].kind == "BATTERY_CRITICAL"
 
 
 def test_phone_card_is_upserted_on_first_save_then_updated_by_version():
@@ -250,7 +258,14 @@ def test_phone_card_is_upserted_on_first_save_then_updated_by_version():
     assert updated.json()["record"]["version"] == current["version"] + 1
 
 
-def test_schedule_exception_exam_season_and_message_templates():
+def test_schedule_exception_exam_season_and_message_templates(monkeypatch):
+    events = []
+
+    async def capture_event(_db, event, _now):
+        events.append(event)
+        return []
+
+    monkeypatch.setattr(cards_router, "publish_and_process", capture_event)
     client = TestClient(app)
     register = client.post("/auth/register", json={
         "name": "Cards Owner",
@@ -294,6 +309,7 @@ def test_schedule_exception_exam_season_and_message_templates():
     assert updated_exam.status_code == 201
     assert updated_exam.json()["id"] == exam_id
     assert updated_exam.json()["record"]["version"] == 2
+    assert events[-1].kind == "EXAM_SET_CHANGED"
     assert len(client.get("/cards/exam").json()) == 1
 
     season = client.get("/cards/exam/season")

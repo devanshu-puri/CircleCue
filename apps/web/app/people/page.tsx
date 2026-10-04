@@ -40,6 +40,7 @@ export default function PeoplePage() {
   const [viewerState, setViewerState] = useState<ViewerState | null>(null);
   const [viewerTimeline, setViewerTimeline] = useState<ViewerTimeline | null>(null);
   const [loadingState, setLoadingState] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   // Add Person Sheet State
   const [addOpen, setAddOpen] = useState(false);
@@ -65,11 +66,42 @@ export default function PeoplePage() {
     loadConnections();
   }, []);
 
+  useEffect(() => {
+    const ownerId = selectedUser?.id;
+    if (!ownerId) return;
+    let active = true;
+    let refreshing = false;
+    const timer = window.setInterval(async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const state = await getViewerState(ownerId);
+        if (!active) return;
+        setViewerState(state);
+        if (state?.card_access?.schedule && state.card_access.schedule !== "none") {
+          setViewerTimeline(await getViewerTimeline(ownerId));
+        } else {
+          setViewerTimeline(null);
+        }
+        setDetailError(null);
+      } catch (err: any) {
+        if (active) setDetailError(err.message || "Could not refresh this person's shared status.");
+      } finally {
+        refreshing = false;
+      }
+    }, 10_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [selectedUser?.id]);
+
   async function handleSelectConnection(conn: Connection) {
     if (!conn.other_user) return;
     setSelectedUser(conn.other_user);
     setViewerState(null);
     setViewerTimeline(null);
+    setDetailError(null);
     setLoadingState(true);
     try {
       const st = await getViewerState(conn.other_user.id);
@@ -78,7 +110,7 @@ export default function PeoplePage() {
         setViewerTimeline(await getViewerTimeline(conn.other_user.id));
       }
     } catch {
-      // Ignored
+      setDetailError("Could not load this person's shared status. Check that they have granted access to you.");
     } finally {
       setLoadingState(false);
     }
@@ -241,13 +273,19 @@ export default function PeoplePage() {
       {/* Viewer State Detail Bottom Sheet */}
       <BottomSheet
         isOpen={selectedUser !== null}
-        onClose={() => setSelectedUser(null)}
+        onClose={() => {
+          setSelectedUser(null);
+          setViewerState(null);
+          setViewerTimeline(null);
+          setDetailError(null);
+        }}
         title={selectedUser?.name || "Person"}
       >
         {loadingState ? (
           <SkeletonBlock className="h-40 w-full" />
         ) : (
           <div className="flex flex-col gap-4">
+            {detailError && <p className="text-[13px] text-[var(--danger)]">{detailError}</p>}
             <div className="flex items-center gap-3 pb-3 border-b border-[var(--hairline)]">
               <AvatarCircle name={selectedUser?.name || "User"} size={48} />
               <div>
@@ -283,6 +321,11 @@ export default function PeoplePage() {
                   ? `Calls: ${viewerState.reachability.calls || "ok"} · Messages: ${viewerState.reachability.messages || "ok"}${viewerState.reachability.until ? ` · Until ${new Date(viewerState.reachability.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
                   : viewerState?.sharing_paused ? "No details are shared while sharing is paused." : "Live availability hasn’t been shared with you."}
               </p>
+              {viewerState?.as_of && (
+                <p className="mt-2 text-[11px] opacity-70">
+                  Live status · updated {new Date(viewerState.as_of).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · refreshes every 10 seconds
+                </p>
+              )}
             </Tile>
 
             {/* Specific context cards */}

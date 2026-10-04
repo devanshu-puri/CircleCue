@@ -16,6 +16,8 @@ from app.domain.scenarios import resolve_time_scenarios
 from app.domain.visibility import can_view, can_view_for_connection, state_for_viewer, viewers_for
 
 logger = logging.getLogger("circlecue.notifications")
+DAILY_ALERT_LIMIT = 20
+ALERT_DEDUPE_WINDOW_SECONDS = 5 * 60
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,9 @@ NOTIFICATION_POLICIES = {
     NotificationKind.SCHEDULE_CHANGED: NotificationPolicy(CardKey.SCHEDULE, AccessLevel.STATUS, "schedule_change"),
     NotificationKind.ACTIVITY_STARTED: NotificationPolicy(CardKey.LIVE, AccessLevel.STATUS, "activity"),
     NotificationKind.ACTIVITY_EXTENDED: NotificationPolicy(CardKey.LIVE, AccessLevel.STATUS, "activity"),
+    NotificationKind.EXAM_SET_CHANGED: NotificationPolicy(CardKey.EXAM, AccessLevel.STATUS, "exam"),
+    NotificationKind.PHONE_STATE_CHANGED: NotificationPolicy(CardKey.PHONE, AccessLevel.STATUS, "phone"),
+    NotificationKind.SAFETY_WATCH_STARTED: NotificationPolicy(CardKey.SAFETY, AccessLevel.STATUS, "safety"),
     NotificationKind.TRAVEL_STARTED: NotificationPolicy(CardKey.TRAVEL, AccessLevel.STATUS, "travel"),
     NotificationKind.TRAVEL_DELAYED: NotificationPolicy(CardKey.TRAVEL, AccessLevel.STATUS, "travel"),
     NotificationKind.PLAN_CHANGED: NotificationPolicy(CardKey.TRAVEL, AccessLevel.STATUS, "travel"),
@@ -89,12 +94,29 @@ def render_notification(kind: NotificationKind, state: ViewerState) -> RenderedN
         "MESSAGE" if getattr(messages, "value", messages) == "ok" else "NONE"
     )
 
+    if kind == NotificationKind.SCHEDULE_CHANGED:
+        return RenderedNotification(f"Schedule updated: {label}", action)
+    if kind == NotificationKind.ACTIVITY_STARTED:
+        return RenderedNotification(f"Now: {label}", action)
+    if kind == NotificationKind.ACTIVITY_EXTENDED:
+        return RenderedNotification(f"Activity updated: {label}", action)
     if kind == NotificationKind.FREE_NOW:
         free_minutes = getattr(state.reachability, "free_in_min", None)
         duration = f" for about {free_minutes} minutes" if free_minutes else ""
         return RenderedNotification(f"Free{duration}. Call?", action)
     if kind in (NotificationKind.EXAM_STARTED, NotificationKind.EXAM_BREAK, NotificationKind.EXAM_FINISHED):
         return RenderedNotification(label, action)
+    if kind == NotificationKind.EXAM_SET_CHANGED:
+        return RenderedNotification("Exam plan updated", action)
+    if kind == NotificationKind.PHONE_STATE_CHANGED:
+        phone = state.phone or {}
+        mode = phone.get("mode", "normal")
+        mode_label = "Do Not Disturb" if mode == "dnd" else "Silent" if mode == "silent" else "On ring"
+        battery = phone.get("battery_bucket")
+        suffix = f" · Battery {battery}" if battery else ""
+        return RenderedNotification(f"Phone status: {mode_label}{suffix}", action)
+    if kind == NotificationKind.SAFETY_WATCH_STARTED:
+        return RenderedNotification("Started a safety check-in", "MESSAGE")
     if kind in (
         NotificationKind.TRAVEL_STARTED,
         NotificationKind.TRAVEL_DELAYED,
@@ -410,10 +432,10 @@ async def process_event(db, event: DomainEvent, now: datetime) -> List[Dict[str,
                 if item.get("about_owner") == event.owner
                 and item.get("created_at") is not None
                 and item["created_at"] >= day_ago
-            ) >= 2:
+            ) >= DAILY_ALERT_LIMIT:
                 continue
 
-        window = event.occurred_at.strftime("%Y%m%d%H")
+        window = int(event.occurred_at.timestamp() // ALERT_DEDUPE_WINDOW_SECONDS)
         dedupe_key = f"{event.owner}:{viewer_id}:{kind.value}:{event.entity_id}:{window}"
         if await db.notifications.find_one({"dedupe_key": dedupe_key}):
             continue

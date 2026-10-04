@@ -10,6 +10,8 @@ Manual smoke steps for verification.
 6. As B, request `GET /state/{A}`. Confirm travel status is visible but destination, companion, and vehicle details are absent.
 7. As A, call `DELETE /grants/{B}`. Repeat the state request as B and confirm all projected context is unavailable immediately.
 8. Grant access again, then block or remove the connection. Confirm all grants are revoked and B cannot read A's state.
+9. In `/permissions`, verify a connection with no grant opens with all card levels at Details and all alert switches on. Turn off one card and one alert, save, reload the page, and verify the selections persist. Before saving, verify B still cannot read A's state; connection acceptance alone must not create access.
+10. With an active grant, open B's People detail for A. Update A's live activity and confirm B's detail refreshes within 10 seconds and remains limited to the saved card grants. Revoke or pause A's sharing and confirm the next refresh removes the shared state.
 
 ## M04: Resolver and timelines
 1. Seed an owner routine and a Saturday `CLASS` template from 09:00 to 10:00 in `Asia/Kolkata`; set calls to `no` and visibility to `private_label` with label `Personal`.
@@ -76,6 +78,9 @@ Manual smoke steps for verification.
 8. Send late `arrived` signal or transition activity to `arrived`: confirm `ALL_CLEAR` notification is generated and delivered to viewer ("Arrival confirmed. All good.").
 9. Create a message with `promise_at`: verify `PromiseWorkflow` triggers `PROMISE_DUE` owner reminder if not marked done within 5 minutes.
 10. Grant a connected viewer LIVE STATUS and enable “Live activity updates”. Create a live activity and edit its title; confirm one `ACTIVITY_STARTED` and one `ACTIVITY_EXTENDED` alert appear in the viewer's inbox/SSE stream. Disable the activity notification toggle or revoke LIVE access and confirm no further alert is delivered.
+11. Enable schedule, exam, phone, and safety card access plus their matching alert toggles. Make a schedule change, update an exam set, change phone mode/battery, and start a safety watch; confirm each supported alert appears with readable, permission-filtered content. Battery threshold alerts should fire when crossing into the configured low bucket.
+12. Keep `/permissions` Alerts open while another authorized session creates an activity. Confirm SSE inserts the alert once, shows the connected sender and current text, and that browser reconnect does not duplicate it. Reload and confirm the newest alert is first; mark it read and confirm the state persists after reload.
+13. Verify normal alerts stop after the documented 20-per-owner/viewer rolling-day cap, duplicate same-kind updates within the 5-minute dedupe window are collapsed, and urgent safety alerts still arrive. Pause or revoke the owner's sharing and confirm inbox reads and live delivery no longer expose their data.
 
 ## M02/M10: Pause, dashboard log, and Today summary
 1. Pause sharing from the profile page. Reload and confirm the paused state remains active and a connected viewer sees no private context.

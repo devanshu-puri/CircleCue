@@ -17,6 +17,7 @@ import {
 import {
   getNotifications,
   markNotificationRead,
+  subscribeToNotifications,
   getConnections,
   getGrants,
   updateGrant,
@@ -34,12 +35,43 @@ export default function PermissionsAndAlertsPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Grant editor sheet state
   const [selectedConn, setSelectedConn] = useState<Connection | null>(null);
   const [editingGrant, setEditingGrant] = useState<Grant | null>(null);
   const [savingGrant, setSavingGrant] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [newGrantDraft, setNewGrantDraft] = useState(false);
+
+  function allAccessGrant(viewer: string): Grant {
+    return {
+      owner: "",
+      viewer,
+      cards: {
+        schedule: "details",
+        exam: "details",
+        live: "details",
+        travel: "details",
+        phone: "details",
+        safety: "details",
+        message: "details",
+      },
+      notify: {
+        free_now: true,
+        activity: true,
+        phone: true,
+        exam: true,
+        travel: true,
+        battery: true,
+        schedule_change: true,
+        message: true,
+        safety: true,
+      },
+      important: false,
+      reach_through: false,
+    };
+  }
 
   async function loadData() {
     setLoading(true);
@@ -52,8 +84,9 @@ export default function PermissionsAndAlertsPage() {
       setNotifications(notifs);
       setConnections(conns.filter((c) => c.status === "active"));
       setGrants(grs);
-    } catch {
-      // Ignored
+      setLoadError(null);
+    } catch (err: any) {
+      setLoadError(err.message || "Could not load alerts and permissions.");
     } finally {
       setLoading(false);
     }
@@ -61,6 +94,17 @@ export default function PermissionsAndAlertsPage() {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const stream = subscribeToNotifications((notification) => {
+      setNotifications((current) => (
+        current.some((item) => item._id === notification._id)
+          ? current
+          : [notification, ...current]
+      ));
+    });
+    return () => stream.close();
   }, []);
 
   async function handleMarkRead(id: string) {
@@ -75,32 +119,10 @@ export default function PermissionsAndAlertsPage() {
     const existing = grants.find((g) => g.viewer === conn.other_user?.id);
     if (existing) {
       setEditingGrant({ ...existing });
+      setNewGrantDraft(false);
     } else {
-      setEditingGrant({
-        owner: "",
-        viewer: conn.other_user?.id || "",
-        cards: {
-          schedule: "none",
-          exam: "none",
-          live: "none",
-          travel: "none",
-          phone: "none",
-          safety: "none",
-          message: "none",
-        },
-        notify: {
-          free_now: false,
-          activity: false,
-          exam: false,
-          travel: false,
-          battery: false,
-          schedule_change: false,
-          message: false,
-          safety: false,
-        },
-        important: false,
-        reach_through: false,
-      });
+      setEditingGrant(allAccessGrant(conn.other_user?.id || ""));
+      setNewGrantDraft(true);
     }
     setSaveSuccess(false);
   }
@@ -144,6 +166,12 @@ export default function PermissionsAndAlertsPage() {
     });
   }
 
+  function selectAllPermissions() {
+    if (!editingGrant) return;
+    const all = allAccessGrant(editingGrant.viewer);
+    setEditingGrant({ ...editingGrant, cards: all.cards, notify: all.notify });
+  }
+
   return (
     <div className="min-h-screen bg-[var(--canvas)] pb-28">
       <GlobalNav alertCount={notifications.filter((n) => !n.read_at).length} />
@@ -162,6 +190,7 @@ export default function PermissionsAndAlertsPage() {
       />
 
       <main className="mx-auto flex max-w-[390px] flex-col gap-4 px-4 py-5">
+        {loadError && <p className="text-[13px] text-[var(--danger)]">{loadError}</p>}
         {loading ? (
           <div className="flex flex-col gap-3">
             <SkeletonBlock className="h-20 w-full" />
@@ -186,6 +215,7 @@ export default function PermissionsAndAlertsPage() {
               <div className="flex flex-col gap-2">
                 {notifications.map((n) => {
                   const isRead = !!n.read_at;
+                  const sender = connections.find((connection) => connection.other_user?.id === n.about_owner)?.other_user?.name;
                   return (
                     <div
                       key={n._id}
@@ -205,6 +235,9 @@ export default function PermissionsAndAlertsPage() {
                           })}
                         </span>
                       </div>
+                      {sender && (
+                        <p className="text-[12px] text-[var(--ink-muted-48)]">From {sender}</p>
+                      )}
                       <p className="text-[14px] text-[var(--ink)] leading-snug">
                         {n.payload_redacted?.text || n.kind}
                       </p>
@@ -228,7 +261,7 @@ export default function PermissionsAndAlertsPage() {
               <h2 className="text-[17px] font-semibold text-[var(--ink)]">Who Can See What</h2>
             </div>
             <p className="text-[13px] text-[var(--ink-muted-80)] mb-4">
-              By default, connections have zero access. Grant permission per-card.
+              Accepting a connection shares nothing. A new permission starts with all details and alerts selected; review it and save only what you want to share.
             </p>
 
             {connections.length === 0 ? (
@@ -281,11 +314,25 @@ export default function PermissionsAndAlertsPage() {
       >
         {editingGrant && (
           <div className="flex flex-col gap-5">
+            {newGrantDraft && (
+              <p className="rounded-[var(--r-md)] bg-[var(--surface-chip-translucent)] p-3 text-[13px] text-[var(--ink-muted-80)]">
+                All card details and alerts are selected for this new permission. Turn off anything you want to keep private before saving.
+              </p>
+            )}
             {/* Card Access Levels */}
             <div>
-              <h3 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-muted-80)] mb-3">
-                Card Access
-              </h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-muted-80)]">
+                  Card Access
+                </h3>
+                <PillButton
+                  variant="ghost"
+                  onClick={selectAllPermissions}
+                  className="!px-3 !py-1 text-[12px]"
+                >
+                  Select all
+                </PillButton>
+              </div>
               <div className="flex flex-col gap-3">
                 {(["schedule", "exam", "live", "travel", "phone", "message", "safety"] as const).map(
                   (card) => (
@@ -328,6 +375,11 @@ export default function PermissionsAndAlertsPage() {
                   onChange={(v) => updateNotifyFlag("activity", v)}
                 />
                 <Switch
+                  label="Phone status updates"
+                  checked={editingGrant.notify.phone}
+                  onChange={(v) => updateNotifyFlag("phone", v)}
+                />
+                <Switch
                   label="Exam updates"
                   checked={editingGrant.notify.exam}
                   onChange={(v) => updateNotifyFlag("exam", v)}
@@ -346,6 +398,16 @@ export default function PermissionsAndAlertsPage() {
                   label="Schedule changes"
                   checked={editingGrant.notify.schedule_change}
                   onChange={(v) => updateNotifyFlag("schedule_change", v)}
+                />
+                <Switch
+                  label="Messages"
+                  checked={editingGrant.notify.message}
+                  onChange={(v) => updateNotifyFlag("message", v)}
+                />
+                <Switch
+                  label="Safety check-ins"
+                  checked={editingGrant.notify.safety}
+                  onChange={(v) => updateNotifyFlag("safety", v)}
                 />
               </div>
             </div>

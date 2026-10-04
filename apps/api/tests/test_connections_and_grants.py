@@ -55,7 +55,7 @@ def test_connection_and_grants_full_flow(mock_db):
     grant_resp = client_a.put(f"/grants/{user_b_data['id']}", json={
         "relationship_preset": "friend",
         "cards": {"travel": "status", "live": "details", "schedule": "status"},
-        "notify": {"free_now": True}
+        "notify": {"free_now": True, "activity": True}
     })
     assert grant_resp.status_code == 200
     assert grant_resp.json()["cards"]["travel"] == "status"
@@ -71,6 +71,27 @@ def test_connection_and_grants_full_flow(mock_db):
     assert projected_state.status_code == 200
     assert projected_state.json()["owner"] == user_a_data["id"]
     assert projected_state.json()["activity"]["label"] == "Revision in progress"
+    alerts = client_b.get("/notifications")
+    assert alerts.status_code == 200
+    assert len(alerts.json()) == 1
+    assert alerts.json()[0]["payload_redacted"]["text"] == "Now: Revision in progress"
+
+    updated_activity = client_a.patch(f"/cards/live/{live_activity.json()['id']}", json={
+        "version": live_activity.json()["record"]["version"],
+        "title": "Math revision in progress",
+    })
+    assert updated_activity.status_code == 200
+    refreshed_state = client_b.get(f"/state/{user_a_data['id']}")
+    assert refreshed_state.json()["activity"]["label"] == "Math revision in progress"
+    updated_alerts = client_b.get("/notifications")
+    assert len(updated_alerts.json()) == 2
+    updated_alert = next(
+        item for item in updated_alerts.json()
+        if item["kind"] == "ACTIVITY_EXTENDED"
+    )
+    assert updated_alert["payload_redacted"]["text"] == "Activity updated: Math revision in progress"
+    read_alert = client_b.post(f"/notifications/{updated_alert['_id']}/read")
+    assert read_alert.status_code == 200
 
     shared_timeline = client_b.get(
         f"/timeline/{user_a_data['id']}", params={"date": "2026-10-03"}
@@ -86,6 +107,7 @@ def test_connection_and_grants_full_flow(mock_db):
     outgoing_resp = client_a.get("/grants/outgoing")
     assert outgoing_resp.status_code == 200
     assert len(outgoing_resp.json()) == 1
+    assert client_a.get("/grants/outgoing").json()[0]["notify"]["activity"] is True
 
     incoming_resp = client_b.get("/grants/incoming")
     assert incoming_resp.status_code == 200
