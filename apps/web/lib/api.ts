@@ -164,10 +164,15 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     let errorDetail = "";
     try {
-      const errObj = await response.json();
-      errorDetail = errObj.message || errObj.detail || JSON.stringify(errObj);
+      const rawText = await response.text();
+      try {
+        const errObj = JSON.parse(rawText);
+        errorDetail = typeof errObj === "string" ? errObj : errObj.message || errObj.detail || JSON.stringify(errObj);
+      } catch {
+        errorDetail = rawText;
+      }
     } catch {
-      errorDetail = await response.text();
+      errorDetail = `Request failed with status ${response.status}`;
     }
     throw new Error(errorDetail || `Request failed with status ${response.status}`);
   }
