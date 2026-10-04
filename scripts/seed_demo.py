@@ -61,8 +61,8 @@ def main():
         arjun_reg.raise_for_status()
         arjun = arjun_reg.json()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code in (409, 400):
-            print("      Arjun already exists  logging in instead")
+        if e.response.status_code in (409, 400, 422):
+            print("     Arjun already exists - logging in instead")
             arjun_login = client.post("/auth/login", json={
                 "email": "arjun@demo.circlecue.app",
                 "password": "demo-password-arjun",
@@ -109,7 +109,7 @@ def main():
         priya_reg.raise_for_status()
         priya = priya_reg.json()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code in (409, 400):
+        if e.response.status_code in (409, 400, 422):
             print("      Priya already exists  logging in instead")
             priya_login = client.post("/auth/login", json={
                 "email": "priya@demo.circlecue.app",
