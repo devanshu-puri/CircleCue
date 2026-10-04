@@ -151,9 +151,15 @@ export interface ParseResult {
 }
 
 async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
+  const baseUrl = (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  let url = input;
+  if (input.startsWith("/api/") && baseUrl) {
+    url = `${baseUrl}${input.replace(/^\/api/, "")}`;
+  }
+
+  const response = await fetch(url, {
     ...init,
-    credentials: "same-origin",
+    credentials: "include",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",

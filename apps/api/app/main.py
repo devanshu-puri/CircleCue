@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 from fastapi import FastAPI, Depends, status, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 
@@ -51,8 +52,19 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
-
     setup_exception_handlers(app)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://circlecue-web.onrender.com",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.middleware("http")
     async def add_security_headers(request, call_next):
