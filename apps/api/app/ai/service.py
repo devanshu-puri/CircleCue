@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,15 +14,58 @@ from typing import Any, Dict, List, Optional
 from app.ai.adapter import LLMProvider, OllamaProvider, OpenAICompatProvider, RulesProvider
 from app.ai.missing import merge_required_missing
 from app.ai.people import match_person
-from app.ai.schemas import Missing, ParseResult, SignificanceResult, TimeSpec
+from app.ai.schemas import ActivityDraft, Missing, ParseResult, PhoneDraft, SignificanceResult, TimeSpec
 from app.ai.timeparse import resolve_time_spec
 from app.config import Settings, settings
 from app.core.errors import AIParseError
+from app.domain.models import Calls
 
 logger = logging.getLogger("circlecue.ai")
 PARSE_SYSTEM_PROMPT = (
     Path(__file__).parent.joinpath("prompts", "parse_v1.md").read_text(encoding="utf-8")
 )
+
+
+def _enforce_explicit_availability(result: ParseResult, text: str) -> ParseResult:
+    """Keep explicit call and ringer instructions deterministic across AI providers."""
+    lowered = text.lower()
+    explicit_no_calls = any(phrase in lowered for phrase in (
+        "no call", "no calls", "don't call", "do not call", "can't call", "cannot call",
+        "don't disturb", "not taking calls",
+    ))
+    timed_study = bool(re.search(r"\b(?:study|studying|revision|revising)\b", lowered) and re.search(r"\b(?:till|until|by)\s+\d", lowered))
+    allow_calls = "call me" in lowered or "calls are ok" in lowered
+    mode = None
+    if re.search(r"\b(?:dnd|do not disturb)\b", lowered):
+        mode = "dnd"
+    elif re.search(r"\b(?:phone on )?silent(?: mode)?\b", lowered):
+        mode = "silent"
+    elif re.search(r"\b(?:phone (?:is )?on ring|ring mode)\b", lowered):
+        mode = "normal"
+
+    items = []
+    found_phone = False
+    for item in result.items:
+        if isinstance(item, ActivityDraft) and (explicit_no_calls or timed_study) and not allow_calls:
+            item = item.model_copy(update={
+                "availability": item.availability.model_copy(update={"calls": Calls.NO})
+            })
+        if isinstance(item, PhoneDraft):
+            found_phone = True
+            if mode:
+                item = item.model_copy(update={"mode": mode, "messages": "ok"})
+        items.append(item)
+
+    if mode:
+        if found_phone:
+            pass
+        else:
+            items.append(PhoneDraft(kind="phone", mode=mode, messages="ok"))
+        if result.intent == "unknown":
+            result = result.model_copy(update={"intent": "phone"})
+    data = result.model_dump()
+    data["items"] = [item.model_dump() for item in items]
+    return ParseResult.model_validate(data)
 
 
 @dataclass
@@ -177,6 +221,7 @@ class AIService:
                     )
                     parsed = ParseResult.model_validate(raw)
                     parsed = _resolve_times(parsed, now, tz, connections or [])
+                    parsed = _enforce_explicit_availability(parsed, text)
                     parsed = merge_required_missing(parsed)
                     return ParseOutcome(
                         result=parsed,

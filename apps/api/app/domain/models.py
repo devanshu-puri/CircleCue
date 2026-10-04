@@ -242,6 +242,7 @@ class User(BaseModel):
     pw_hash: str
     tz: str = "UTC"
     avatar_url: Optional[str] = None
+    current_place: Optional[str] = Field(default=None, max_length=100)
     routine_prefs: RoutinePrefs = Field(default_factory=RoutinePrefs)
     ai_prefs: AIPrefs = Field(default_factory=AIPrefs)
     sharing_paused: SharingPaused = Field(default_factory=SharingPaused)
@@ -475,6 +476,7 @@ class ResolvedState(BaseModel):
     activity: Optional[ActiveActivityResolved] = None
     reachability: ReachabilityResolved = Field(default_factory=ReachabilityResolved)
     phone: Dict[str, Any] = Field(default_factory=dict)
+    current_place: Optional[str] = None
     travel: Optional[Dict[str, Any]] = None
     exam: Optional[Dict[str, Any]] = None
     last_shared_context: Optional[ContextSnapshot] = None
@@ -487,6 +489,7 @@ class ViewerState(BaseModel):
     activity: Optional[Dict[str, Any]] = None
     reachability: Optional[ReachabilityResolved] = None
     phone: Optional[Dict[str, Any]] = None
+    current_place: Optional[str] = None
     travel: Optional[Dict[str, Any]] = None
     exam: Optional[Dict[str, Any]] = None
     last_shared_context: Optional[ContextSnapshot] = None

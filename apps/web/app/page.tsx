@@ -24,6 +24,7 @@ import {
   confirmDraft,
   getCards,
   updateCard,
+  updateCurrentPlace,
   type NotificationItem,
   type ViewerState,
   type ParseResult,
@@ -47,17 +48,21 @@ function resolveStatus(state: ViewerState | null) {
   const activity = state.activity as Record<string, any> | null | undefined;
   const title = readableText(activity?.label ?? activity?.type ?? (isBusy ? "Busy" : "Available"));
 
-  let detail = readableText(reachability.reason || (calls === "no" ? "Calls: not now" : (calls === "prefer_not" ? "Calls: prefer not" : "Calls: ok")));
+  const callText = calls === "no" ? "Calls: no" : calls === "prefer_not" ? "Calls: prefer not" : "Calls: ok";
+  const messageText = reachability.messages === "later" ? "Messages: later" : "Messages: ok";
+  let detail = `${callText} · ${messageText}`;
   if (reachability.free_in_min) {
     detail = `${detail} · Free in ~${reachability.free_in_min}m`;
   } else if (reachability.until) {
     detail = `${detail} · until ${new Date(reachability.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
   }
 
+  const phoneMode = state.phone?.mode ?? "normal";
+  const phoneLabel = phoneMode === "dnd" ? "📵 Phone on Do Not Disturb" : phoneMode === "silent" ? "🔕 Phone on Silent" : "📳 Phone on ring · Messages: ok";
+  if (phoneMode !== "normal") detail = `${detail} · ${phoneLabel.replace(/^\S+ /, "")}`;
   const chips = [
-    calls === "ok" ? "🟢 Reachable" : "🔴 Busy",
+    isBusy ? "🔴 Busy · Calls: no" : "🟢 Reachable · Calls: ok",
     state.phone?.battery_pct ? `⚡ ${state.phone.battery_pct}%` : "⚡ Phone ok",
-    state.travel ? `✈️ ${state.travel.destination || "Travelling"}` : "🏠 At home",
   ];
 
   return {
@@ -95,6 +100,10 @@ export default function HomePage() {
   const [confirming, setConfirming] = useState(false);
   const [composeSuccess, setComposeSuccess] = useState(false);
   const [finishingActivity, setFinishingActivity] = useState(false);
+  const [placeOpen, setPlaceOpen] = useState(false);
+  const [placeValue, setPlaceValue] = useState("");
+  const [customPlace, setCustomPlace] = useState("");
+  const [savingPlace, setSavingPlace] = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -149,6 +158,43 @@ export default function HomePage() {
     } finally {
       setFinishingActivity(false);
     }
+  }
+
+  async function handleSavePlace(value: string) {
+    if (value === "") {
+      setSavingPlace(true);
+      try {
+        await updateCurrentPlace("");
+        setState(await getMyState());
+        setPlaceOpen(false);
+      } catch (caught: any) {
+        setError(caught.message || "Could not clear your place.");
+      } finally {
+        setSavingPlace(false);
+      }
+      return;
+    }
+    const place = value === "Custom" ? customPlace.trim() : value;
+    if (!place) return;
+    setSavingPlace(true);
+    setError(null);
+    try {
+      await updateCurrentPlace(place);
+      setState(await getMyState());
+      setPlaceOpen(false);
+    } catch (caught: any) {
+      setError(caught.message || "Could not update your place.");
+    } finally {
+      setSavingPlace(false);
+    }
+  }
+
+  function openPlacePicker() {
+    const savedPlace = state?.current_place || "";
+    const knownPlaces = ["At home", "College", "Library", "At a friend’s place"];
+    setPlaceValue(knownPlaces.includes(savedPlace) ? savedPlace : savedPlace ? "Custom" : "");
+    setCustomPlace(savedPlace && !knownPlaces.includes(savedPlace) ? savedPlace : "");
+    setPlaceOpen(true);
   }
 
   async function handleParse() {
@@ -272,10 +318,13 @@ export default function HomePage() {
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {currentStatus.chips.map((chip) => (
-              <Chip key={chip} selected={true}>
+            <Chip key={chip} selected={true}>
                 {chip}
               </Chip>
             ))}
+            <Chip selected={true} onClick={openPlacePicker}>
+              📍 {state?.current_place || "At home"}
+            </Chip>
           </div>
         </Tile>
 
@@ -299,14 +348,14 @@ export default function HomePage() {
             <Link href="/me/travel">
               <UtilityCard
                 title="Travel"
-                subtitle={state?.travel ? state.travel.destination || "On route" : "At home"}
+                subtitle={state?.travel ? state.travel.destination || "On route" : state?.current_place || "Place not set"}
                 action={<span className="text-[12px] font-semibold text-[var(--primary)]">ETA</span>}
               />
             </Link>
             <Link href="/me#phone-card">
               <UtilityCard
                 title="Phone"
-                subtitle={state?.phone ? (state.phone.mode === "silent" ? "Silent" : "Healthy") : "Healthy"}
+                subtitle={state?.phone?.mode === "silent" ? "On silent" : state?.phone?.mode === "dnd" ? "Do Not Disturb" : "On ring"}
                 action={<span className="text-[12px] font-semibold text-[var(--primary)]">Status</span>}
               />
             </Link>
@@ -408,6 +457,11 @@ export default function HomePage() {
                       Calls: {item.availability.calls} · Messages: {item.availability.messages}
                     </p>
                   )}
+                  {item.kind === "phone" && (
+                    <p className="text-[12px] text-[var(--ink-muted-80)]">
+                      Phone: {item.mode === "dnd" ? "Do Not Disturb" : item.mode === "silent" ? "Silent" : "On ring"} · Messages: ok
+                    </p>
+                  )}
                   {item.destination && (
                     <p className="text-[12px] text-[var(--ink-muted-80)]">Destination: {item.destination}</p>
                   )}
@@ -462,6 +516,24 @@ export default function HomePage() {
               )}
             </div>
           )}
+        </div>
+      </BottomSheet>
+
+      <BottomSheet isOpen={placeOpen} onClose={() => setPlaceOpen(false)} title="Set your place">
+        <div className="flex flex-col gap-3">
+          <p className="text-[13px] text-[var(--ink-muted-80)]">Choose a place to share manually. CircleCue does not track your location.</p>
+          {["At home", "College", "Library", "At a friend’s place", "Custom"].map((place) => (
+            <PillButton key={place} variant={placeValue === place ? "primary" : "ghost"} onClick={() => setPlaceValue(place)}>
+              {place}
+            </PillButton>
+          ))}
+          {placeValue === "Custom" && (
+            <input value={customPlace} onChange={(event) => setCustomPlace(event.target.value)} maxLength={100} placeholder="Write your place" className="rounded-[var(--r-sm)] border border-[var(--hairline)] bg-[var(--canvas)] px-3 py-2 text-[15px]" />
+          )}
+          <PillButton variant="primary" disabled={!placeValue || (placeValue === "Custom" && !customPlace.trim()) || savingPlace} onClick={() => handleSavePlace(placeValue)}>
+            {savingPlace ? "Saving…" : "Save place"}
+          </PillButton>
+          {state?.current_place && <PillButton variant="ghost" disabled={savingPlace} onClick={() => handleSavePlace("")}>Clear place</PillButton>}
         </div>
       </BottomSheet>
 

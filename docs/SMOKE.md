@@ -52,6 +52,9 @@ Manual smoke steps for verification.
 5. Confirm the activity draft through `POST /ai/confirm`; verify provenance is `ai_parsed_user_confirmed`. Repeat as another account and confirm it is rejected.
 6. Set `ai_prefs.store_raw=true`, parse again, and confirm raw text is recorded only for that owner. Restore false and verify later invocations omit it.
 7. Stop the model endpoint while `AI_PROVIDER=ollama` or `openai_compat`; confirm the rules provider still returns a draft. Review Sentry spans for provider/model/timing/schema/intent metadata and verify no text is attached.
+8. Parse `I will be studying till 6:25, no call till then` as a user whose local time is before 6:25 PM. Confirm the draft says calls are unavailable, the resolved end is 6:25 PM local time, and the dashboard shows Busy until then. Parse `I will be studying till 6:30`; confirm the same no-call default.
+9. Parse `phone on silent`, `phone on DND`, and `phone on ring`. Confirm drafts explicitly display Silent, Do Not Disturb, and On ring with Messages: ok.
+10. On the dashboard, open the “At home” place chip and set Home, College, Library, Friend's place, and a custom value; reload and confirm each persists. Clear it and confirm the chip returns to “At home”. As a connected viewer, verify the place is hidden without Travel DETAILS and visible with Travel DETAILS. Confirm no location permission or GPS prompt appears.
 
 ## M07: Time scenarios
 1. Parse and confirm `Every Friday 7-10 I play cricket, don't notify people I'm available`.

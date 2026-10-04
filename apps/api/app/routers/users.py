@@ -21,6 +21,7 @@ class UserProfileResponse(BaseModel):
     email: str
     tz: str
     avatar_url: Optional[str] = None
+    current_place: Optional[str] = None
     routine_prefs: RoutinePrefs
     ai_prefs: AIPrefs
     sharing_paused: SharingPaused
@@ -29,6 +30,7 @@ class UserProfileResponse(BaseModel):
 class UpdateProfileRequest(BaseModel):
     name: Optional[str] = Field(default=None, max_length=100)
     avatar_url: Optional[str] = Field(default=None, max_length=500)
+    current_place: Optional[str] = Field(default=None, max_length=100)
     tz: Optional[str] = Field(default=None, max_length=50)
     routine_prefs: Optional[RoutinePrefs] = None
     ai_prefs: Optional[AIPrefs] = None
@@ -61,6 +63,7 @@ async def get_me(current_user_id: str = Depends(get_current_user_id)):
         email=user["email"],
         tz=user.get("tz", "UTC"),
         avatar_url=user.get("avatar_url"),
+        current_place=user.get("current_place"),
         routine_prefs=RoutinePrefs(**user.get("routine_prefs", {})),
         ai_prefs=AIPrefs(**user.get("ai_prefs", {})),
         sharing_paused=SharingPaused(**user.get("sharing_paused", {})),
@@ -79,6 +82,9 @@ async def update_me(
         updates["name"] = req.name.strip()
     if req.avatar_url is not None:
         updates["avatar_url"] = req.avatar_url.strip()
+    if req.current_place is not None:
+        place = req.current_place.strip()
+        updates["current_place"] = place or None
     if req.tz is not None:
         updates["tz"] = req.tz.strip()
     if req.routine_prefs is not None:

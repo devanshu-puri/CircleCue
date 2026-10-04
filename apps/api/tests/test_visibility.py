@@ -197,6 +197,7 @@ def test_project_status_vs_details_levels():
             "may_go_offline": True,
             "declared_offline": False
         },
+        current_place="Library",
         travel={
             "destination": "College Campus, Gate 2",
             "destination_kind": "college",
@@ -222,10 +223,15 @@ def test_project_status_vs_details_levels():
     assert viewer_state.travel["destination_kind"] == "college"
     assert "destination" not in viewer_state.travel
     assert "driver_name" not in viewer_state.travel
+    assert viewer_state.current_place is None
 
     # Phone is projected at DETAILS level (exact battery_pct shown!)
     assert viewer_state.phone is not None
     assert viewer_state.phone["battery_pct"] == 14
+
+    grant_details = Grant(owner="u1", viewer="u2", cards=CardGrants(travel=AccessLevel.DETAILS))
+    details_state = project(resolved, grant_details, now, viewer_id="u2")
+    assert details_state.current_place == "Library"
 
 def test_project_private_label_and_visibility_only():
     now = datetime.now(timezone.utc)

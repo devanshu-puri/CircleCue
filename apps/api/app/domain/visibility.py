@@ -136,6 +136,7 @@ def project(
             activity=None,
             reachability=None,
             phone=None,
+            current_place=None,
             travel=None,
             exam=None,
             last_shared_context=None,
@@ -151,6 +152,7 @@ def project(
             activity={"type": "BUSY", "label": "Sharing paused", "until": None},
             reachability=None,
             phone=None,
+            current_place=None,
             travel=None,
             exam=None,
             last_shared_context=None,
@@ -239,6 +241,7 @@ def project(
 
     has_visible_boundary = any((
         projected_activity is not None,
+        resolved.current_place is not None and grant.cards.travel == AccessLevel.DETAILS,
         projected_reachability is not None,
         projected_travel is not None,
         projected_exam is not None,
@@ -254,6 +257,7 @@ def project(
         activity=projected_activity,
         reachability=projected_reachability,
         phone=projected_phone,
+        current_place=(resolved.current_place if travel_level == AccessLevel.DETAILS else None),
         travel=projected_travel,
         exam=projected_exam,
         last_shared_context=(

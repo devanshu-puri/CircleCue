@@ -49,6 +49,7 @@ async def _build_bundle(db, user_id: str) -> Optional[UserBundle]:
         exceptions=exceptions,
         exam_sets=exam_sets,
         phone_state=phone,
+        current_place=user.get("current_place"),
         scenarios=scenarios,
     )
 

@@ -120,6 +120,75 @@ async def test_rules_provider_parses_demo_utterances(text, expected_kinds):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("text", [
+    "I will be studying till 6:30",
+    "I will be studying till 6:25, no call till then",
+])
+async def test_timed_study_means_no_calls_until_end(text):
+    import json
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    result = (await AIService(providers=[RulesProvider()], timeout_s=1).parse(
+        text=text,
+        mode="activity",
+        now=datetime(2026, 10, 3, 10, tzinfo=timezone.utc),
+        tz="Asia/Kolkata",
+    )).result
+    activity = next(item for item in result.items if item.kind == "activity")
+    assert activity.availability.calls == "no"
+    expected_hour = "18:25" if "6:25" in text else "18:30"
+    assert datetime.fromisoformat(activity.resolved_end_at).astimezone(ZoneInfo("Asia/Kolkata")).strftime("%H:%M") == expected_hour
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("phrase", "mode"), [("phone on silent", "silent"), ("phone on DND", "dnd"), ("phone on ring", "normal")])
+async def test_phone_mode_phrases_are_parsed(phrase, mode):
+    import json
+
+    output = await RulesProvider().generate_structured(
+        system="parse",
+        user=json.dumps({"text": phrase}),
+        json_schema=ParseResult.model_json_schema(),
+        timeout=1.0,
+    )
+    result = ParseResult.model_validate(output)
+    phone = next(item for item in result.items if item.kind == "phone")
+    assert phone.mode == mode
+
+
+@pytest.mark.parametrize("text", [
+    "I will be studying till 6:25, no call till then",
+    "I will be studying till 6:30",
+])
+def test_explicit_call_rules_override_model_draft(text):
+    from app.ai.schemas import ActivityDraft, ParseResult
+    from app.ai.service import _enforce_explicit_availability
+
+    draft = ParseResult(intent="activity", items=[ActivityDraft(
+        kind="activity", activity_type="STUDY", title="Study",
+        availability={"calls": "ok", "messages": "ok"},
+    )])
+    result = _enforce_explicit_availability(draft, text)
+    assert result.items[0].availability.calls == "no"
+
+
+@pytest.mark.parametrize(("text", "mode"), [
+    ("my phone is on silent", "silent"),
+    ("my phone is on DND", "dnd"),
+    ("my phone is on ring", "normal"),
+])
+def test_explicit_phone_mode_overrides_model_draft(text, mode):
+    from app.ai.schemas import ParseResult
+    from app.ai.service import _enforce_explicit_availability
+
+    result = _enforce_explicit_availability(ParseResult(intent="unknown"), text)
+    phone = next(item for item in result.items if item.kind == "phone")
+    assert phone.mode == mode
+    assert phone.messages == "ok"
+
+
+@pytest.mark.asyncio
 async def test_rules_provider_understands_lunch_at_destination_and_followup_eta():
     import json
 

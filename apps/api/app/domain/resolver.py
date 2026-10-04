@@ -54,6 +54,7 @@ class UserBundle:
     exceptions: List[Dict[str, Any]] = field(default_factory=list)
     exam_sets: List[Dict[str, Any]] = field(default_factory=list)
     phone_state: Optional[Dict[str, Any]] = None
+    current_place: Optional[str] = None
     scenarios: List[Dict[str, Any]] = field(default_factory=list)
 
 
@@ -255,6 +256,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
             ),
             reachability=ReachabilityResolved(calls=Calls.NO, messages=Messages.OK),
             phone=phone_projection,
+            current_place=bundle.current_place,
             last_shared_context=_last_shared_context(phone),
             next_boundary_at=next_boundary(_dt(safety.get("expected_end_at"))),
         )
@@ -278,6 +280,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
             ),
             reachability=_reachability_from_activity(manual, phone),
             phone=phone_projection,
+            current_place=bundle.current_place,
             last_shared_context=_last_shared_context(phone),
             next_boundary_at=next_boundary(_dt(manual.get("expected_end_at"))),
         )
@@ -307,6 +310,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
                 until=eta,
             ),
             phone=phone_projection,
+            current_place=bundle.current_place,
             last_shared_context=_last_shared_context(phone),
             next_boundary_at=next_boundary(
                 eta, _dt(travel.get("expected_end_at"))
@@ -451,6 +455,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
             ),
             reachability=_reachability_from_activity(scenario_act, phone),
             phone=phone_projection,
+            current_place=bundle.current_place,
             last_shared_context=_last_shared_context(phone),
             next_boundary_at=next_boundary(
                 _dt(scenario_act.get("expected_end_at"))
@@ -504,6 +509,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
                 until=current_seg.end,
             ),
             phone=phone_projection,
+            current_place=bundle.current_place,
             last_shared_context=_last_shared_context(phone),
             next_boundary_at=next_boundary(next_b),
         )
@@ -531,6 +537,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
                 free_in_min=current_window.net_minutes,
             ),
             phone=phone_projection,
+            current_place=bundle.current_place,
             last_shared_context=_last_shared_context(phone),
             next_boundary_at=next_boundary(current_window.end),
         )
@@ -550,6 +557,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
             ),
             reachability=ReachabilityResolved(calls=Calls.OK, messages=Messages.OK),
             phone=phone_projection,
+            current_place=bundle.current_place,
             last_shared_context=_last_shared_context(phone),
             next_boundary_at=next_boundary(day_end),
         )
@@ -562,6 +570,7 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
         activity=None,
         reachability=ReachabilityResolved(calls=Calls.OK, messages=Messages.OK),
         phone=phone_projection,
+        current_place=bundle.current_place,
         last_shared_context=_last_shared_context(phone),
         next_boundary_at=next_boundary(
             day_start if day_start > now else day_start + timedelta(days=1)

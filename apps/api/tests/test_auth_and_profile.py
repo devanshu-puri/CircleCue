@@ -43,6 +43,16 @@ def test_auth_and_profile_flow():
     assert me_data["email"] == "devanshu@example.com"
     assert me_data["routine_prefs"]["wake"] == "07:00"
 
+    place_resp = client.patch("/me", json={"current_place": "Library"})
+    assert place_resp.status_code == 200
+    assert place_resp.json()["current_place"] == "Library"
+    state_resp = client.get("/state/me")
+    assert state_resp.status_code == 200
+    assert state_resp.json()["current_place"] == "Library"
+    cleared_place = client.patch("/me", json={"current_place": ""})
+    assert cleared_place.status_code == 200
+    assert cleared_place.json()["current_place"] is None
+
     # 3. Code Lookup
     user_code = reg_data["user_code"]
     lookup_resp = client.get(f"/users/code-lookup?code={user_code}")

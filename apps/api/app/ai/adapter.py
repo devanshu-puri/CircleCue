@@ -248,10 +248,10 @@ class RulesProvider:
 
         # 2. Phone / Battery detection
         battery_m = re.search(r"\b(?:battery\s*)?(\d{1,3})\s*%", lowered)
-        is_phone = bool(battery_m or "phone dying" in lowered or "going offline" in lowered or "on silent" in lowered or "charging" in lowered or "not reachable" in lowered or "reachable for an hour" in lowered or "hours from now" in lowered)
+        is_phone = bool(battery_m or "phone dying" in lowered or "going offline" in lowered or "on silent" in lowered or "silent mode" in lowered or "dnd" in lowered or "do not disturb" in lowered or "on ring" in lowered or "ring mode" in lowered or "charging" in lowered or "not reachable" in lowered or "reachable for an hour" in lowered or "hours from now" in lowered)
         if is_phone:
             bat_pct = int(battery_m.group(1)) if battery_m else (8 if "dying" in lowered else None)
-            mode = "silent" if "silent" in lowered else ("dnd" if ("offline" in lowered or "dying" in lowered) else "normal")
+            mode = "silent" if "silent" in lowered else ("dnd" if ("dnd" in lowered or "do not disturb" in lowered or "offline" in lowered or "dying" in lowered) else "normal")
             phone_item: Dict[str, Any] = {
                 "kind": "phone",
                 "battery_pct": bat_pct,
@@ -401,7 +401,9 @@ class RulesProvider:
                         hr += 12
                     end_spec = {"hh_mm": f"{hr:02d}:{min_val}", "ampm_assumed": ampm is None}
 
-            calls_val = "no" if re.search(r"don't call|no calls|cannot call|can't call|calls?\s+mat|call\s+mat|don't disturb", lowered) else "ok"
+            calls_val = "no" if re.search(r"don't call|no calls?|cannot call|can't call|calls?\s+mat|call\s+mat|don't disturb|no calls?\s+(?:until|till)|not taking calls?", lowered) else "ok"
+            if act_type == "STUDY" and end_spec:
+                calls_val = "no"
             if "call me any time" in lowered or ("call me" in lowered and "don't" not in lowered and "mat" not in lowered):
                 calls_val = "ok"
             elif exam_match:

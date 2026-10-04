@@ -32,6 +32,7 @@ export interface ViewerState {
     stale?: boolean;
     battery_pct?: number | null;
   } | null;
+  current_place?: string | null;
   travel?: {
     destination?: string;
     eta?: string | null;
@@ -63,6 +64,7 @@ export interface UserProfile {
   user_code: string;
   email?: string;
   avatar_url?: string | null;
+  current_place?: string | null;
   tz?: string;
   routine_prefs?: {
     wake: string;
@@ -235,6 +237,13 @@ export async function logout(): Promise<void> {
 // ----------------- Profile & Me -----------------
 export async function getMe(): Promise<UserProfile> {
   return fetchJson<UserProfile>("/api/me");
+}
+
+export async function updateCurrentPlace(current_place: string): Promise<UserProfile> {
+  return await fetchJson<UserProfile>("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify({ current_place }),
+  });
 }
 
 export async function updateRoutinePrefs(routine_prefs: UserProfile["routine_prefs"]): Promise<UserProfile> {
