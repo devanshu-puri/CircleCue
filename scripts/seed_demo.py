@@ -61,7 +61,7 @@ def main():
         arjun_reg.raise_for_status()
         arjun = arjun_reg.json()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 409 and args.reset:
+        if e.response.status_code in (409, 400):
             print("     ⚠ Arjun already exists — logging in instead")
             arjun_login = client.post("/auth/login", json={
                 "email": "arjun@demo.circlecue.app",
@@ -69,6 +69,7 @@ def main():
             })
             arjun_login.raise_for_status()
             arjun = arjun_login.json()
+            arjun_reg = arjun_login
         else:
             raise
 
@@ -108,7 +109,7 @@ def main():
         priya_reg.raise_for_status()
         priya = priya_reg.json()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 409 and args.reset:
+        if e.response.status_code in (409, 400):
             print("     ⚠ Priya already exists — logging in instead")
             priya_login = client.post("/auth/login", json={
                 "email": "priya@demo.circlecue.app",
@@ -116,12 +117,13 @@ def main():
             })
             priya_login.raise_for_status()
             priya = priya_login.json()
+            priya_reg = priya_login
         else:
             raise
 
     priya_id = priya["id"]
     priya_code = priya.get("user_code", "PRIYA-????")
-    priya_cookies = dict(priya_reg.cookies if not args.reset else {})
+    priya_cookies = dict(priya_reg.cookies)
     if not priya_cookies:
         priya_login_r = client.post("/auth/login", json={
             "email": "priya@demo.circlecue.app",
@@ -143,12 +145,26 @@ def main():
 
     # ─── Connect Arjun → Priya ────────────────────────────────────────────────
     print("3/10  Establishing mutual connection...")
-    conn_req = arjun_post("/connections/request", {"user_code": priya_code})
-    conn_id = conn_req.get("id") or conn_req.get("_id")
-
-    # Priya accepts
-    conn_accept = priya_post(f"/connections/{conn_id}/accept", {})
-    print(f"     ✓ Connection active: {conn_id}")
+    try:
+        conn_req = arjun_post("/connections/request", {"user_code": priya_code})
+        conn_id = conn_req.get("id") or conn_req.get("_id")
+        # Priya accepts
+        priya_post(f"/connections/{conn_id}/accept", {})
+        print(f"     ✓ Connection active: {conn_id}")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (409, 400, 422):
+            print("     ⚠ Already connected — continuing")
+            # look up existing connection id
+            conn_list = client.get("/connections", cookies=arjun_cookies)
+            conns = conn_list.json() if conn_list.status_code == 200 else []
+            conn_id = next(
+                (c.get("_id") or c.get("id") for c in conns
+                 if c.get("status") == "active"),
+                None,
+            )
+            print(f"     ✓ Using existing connection: {conn_id}")
+        else:
+            raise
 
     # ─── Arjun grants Priya detailed access ──────────────────────────────────
     print("4/10  Setting up Arjun → Priya grants...")
@@ -188,19 +204,21 @@ def main():
 
     # ─── Arjun's schedule templates ──────────────────────────────────────────
     print("5/10  Creating Arjun's schedule templates...")
-    # Mon/Wed/Fri Engineering Lecture
+    # Mon/Wed/Fri Engineering Lecture (CLASS → valid for schedule card)
     arjun_post("/cards/schedule", {
         "title": "Engineering Lecture",
         "activity_type": "CLASS",
+        "kind": "SCHEDULE_SLOT",
         "days": [0, 2, 4],
         "start_local": "09:00",
         "end_local": "11:00",
         "availability": {"calls": "no", "messages": "later"},
     })
-    # Mon/Wed Evening Study
+    # Mon/Wed Lab session (LAB → valid for schedule card)
     arjun_post("/cards/schedule", {
-        "title": "Study Session",
-        "activity_type": "STUDY_SESSION",
+        "title": "Lab Session",
+        "activity_type": "LAB",
+        "kind": "SCHEDULE_SLOT",
         "days": [0, 2],
         "start_local": "20:00",
         "end_local": "22:00",
@@ -231,8 +249,9 @@ def main():
     print("7/10  Creating Arjun's active travel to Delhi...")
     now_utc = datetime.now(timezone.utc)
     eta_utc = (now_utc + timedelta(hours=6, minutes=30)).replace(microsecond=0)
-    travel = arjun_post("/cards/live", {
+    travel = arjun_post("/cards/travel", {
         "title": "Travelling to Delhi",
+        "type": "TRAVEL",
         "activity_type": "TRAVEL",
         "start_at": now_utc.isoformat(),
         "expected_end_at": eta_utc.isoformat(),
@@ -270,7 +289,8 @@ def main():
     print("9/10  Creating Priya's routine...")
     priya_post("/cards/schedule", {
         "title": "Morning Routine",
-        "activity_type": "ROUTINE",
+        "activity_type": "FREE_PERIOD",
+        "kind": "SCHEDULE_SLOT",
         "days": [1, 3],  # Tue, Thu
         "start_local": "08:00",
         "end_local": "09:00",
