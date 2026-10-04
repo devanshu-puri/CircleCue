@@ -348,7 +348,7 @@ export function BottomSheet({
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-sm">
       <div className="fixed inset-0" onClick={onClose} />
-      <div className="relative z-10 mx-auto flex w-full max-w-[390px] max-h-[85vh] flex-col rounded-t-[var(--r-xl)] border-t border-[var(--hairline)] bg-[var(--canvas)] p-5 shadow-2xl overflow-y-auto">
+      <div className="relative z-10 mx-auto flex w-full max-w-[390px] max-h-[85dvh] flex-col rounded-t-[var(--r-xl)] border-t border-[var(--hairline)] bg-[var(--canvas)] p-5 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between pb-3 border-b border-[var(--hairline)]">
           <h2 className="font-[family-name:var(--font-display)] text-[20px] font-semibold text-[var(--ink)]">
             {title}
@@ -361,7 +361,7 @@ export function BottomSheet({
             ✕
           </button>
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="mt-4 min-h-0 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>
   );

@@ -31,9 +31,7 @@ def merge_required_missing(result: ParseResult) -> ParseResult:
     for item in result.items:
         if item.kind == "message" and not item.text and not item.template_key:
             require("message", "What would you like the message to say?")
-    if result.intent == "unknown" and not result.items:
-        require("intent", "What would you like to share or schedule?")
-    if result.confidence < 0.5:
+    if result.intent != "unknown" and result.confidence < 0.5:
         require("confirmation", "Please review these details before sharing.")
 
     return result.model_copy(update={"missing": missing})

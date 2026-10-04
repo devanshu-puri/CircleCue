@@ -318,6 +318,11 @@ def resolve(bundle: UserBundle, now: datetime) -> ResolvedState:
                 "phase": travel.get("phase", TravelPhase.PLANNED.value),
                 "overdue": overdue,
                 "companions": meta.get("companions", []),
+                "companion_phone": meta.get("companion_phone"),
+                "expected_return_at": (
+                    _dt(meta.get("expected_return_at")).isoformat()
+                    if _dt(meta.get("expected_return_at")) else None
+                ),
                 "vehicle_number": meta.get("vehicle_number"),
                 "driver_name": meta.get("driver_name"),
                 "driver_phone": meta.get("driver_phone"),

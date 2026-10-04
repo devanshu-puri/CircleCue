@@ -143,6 +143,30 @@ def test_live_activity_update_checks_version_and_lifecycle():
     assert cancelled.status_code == 200
 
 
+def test_owner_can_finish_live_activity_early():
+    client = TestClient(app)
+    register = client.post("/auth/register", json={
+        "name": "Early Finish Owner",
+        "email": "early-finish-owner@example.com",
+        "password": "password123",
+    })
+    assert register.status_code == 201
+    created = client.post("/cards/live", json={
+        "type": "STUDY",
+        "title": "Study until 8",
+        "expected_end_at": "2099-01-01T20:00:00+00:00",
+        "availability": {"calls": "no"},
+    })
+    assert created.status_code == 201
+
+    finished = client.patch(f"/cards/live/{created.json()['id']}", json={
+        "version": 1,
+        "status": "COMPLETED",
+    })
+    assert finished.status_code == 200
+    assert finished.json()["record"]["status"] == "COMPLETED"
+
+
 def test_critical_phone_update_freezes_resolved_context():
     client = TestClient(app)
     register = client.post("/auth/register", json={
@@ -189,6 +213,32 @@ def test_phone_patch_recomputes_bucket_and_context_snapshot():
     assert updated.json()["record"]["battery_bucket"] == "dying"
     assert updated.json()["record"]["last_shared_context"] is not None
     assert updated.json()["record"]["version"] == 2
+
+
+def test_phone_card_is_upserted_on_first_save_then_updated_by_version():
+    client = TestClient(app)
+    register = client.post("/auth/register", json={
+        "name": "Phone Upsert Owner",
+        "email": "phone-upsert-owner@example.com",
+        "password": "password123",
+    })
+    assert register.status_code == 201
+    owner_id = register.json()["id"]
+
+    created = client.post("/cards/phone", json={"mode": "silent", "battery_pct": 50})
+    assert created.status_code == 201
+    current = client.get("/cards/phone").json()[0]
+    assert current["mode"] == "silent"
+
+    updated = client.patch(f"/cards/phone/{owner_id}", json={
+        "version": current["version"],
+        "mode": "dnd",
+        "battery_pct": 25,
+    })
+    assert updated.status_code == 200
+    assert updated.json()["record"]["mode"] == "dnd"
+    assert updated.json()["record"]["battery_pct"] == 25
+    assert updated.json()["record"]["version"] == current["version"] + 1
 
 
 def test_schedule_exception_exam_season_and_message_templates():
@@ -336,6 +386,55 @@ def test_travel_card_uses_lifecycle_for_departure_and_delay():
     assert delayed.status_code == 200
     assert delayed.json()["record"]["status"] == "CHANGED"
     assert delayed.json()["record"]["phase"] == "delayed"
+    assert delayed.json()["record"]["expected_end_at"].startswith("2026-10-03T18:00:00")
+
+    cancelled = client.patch(f"/cards/travel/{item_id}", json={
+        "version": 3,
+        "status": "CANCELLED",
+    })
+    assert cancelled.status_code == 200
+    assert cancelled.json()["record"]["status"] == "CANCELLED"
+
+
+def test_travel_card_accepts_and_updates_companion_phone_and_return_time():
+    client = TestClient(app)
+    register = client.post("/auth/register", json={
+        "name": "Travel Details Owner",
+        "email": "travel-details-owner@example.com",
+        "password": "password123",
+    })
+    assert register.status_code == 201
+    response = client.post("/cards/travel", json={
+        "type": "TRAVEL",
+        "title": "Going to Baglung",
+        "status": "ACTIVE",
+        "phase": "travelling",
+        "check_on_me": {"enabled": True, "grace_min": 15, "escalate_min": 15},
+        "expected_end_at": "2026-10-04T10:00:00+00:00",
+        "metadata": {
+            "destination": "Baglung",
+            "eta": "2026-10-04T10:00:00+00:00",
+            "companions": ["Rahul"],
+            "companion_phone": "+977 9800000000",
+            "expected_return_at": "2026-10-08T10:00:00+00:00",
+        },
+    })
+    assert response.status_code == 201
+    record = response.json()["record"]
+    assert record["metadata"]["companion_phone"] == "+977 9800000000"
+    assert record["metadata"]["expected_return_at"].startswith("2026-10-08")
+
+    updated = client.patch(f"/cards/travel/{response.json()['id']}", json={
+        "version": record["version"],
+        "check_on_me": {"enabled": False, "grace_min": 10, "escalate_min": 20},
+        "metadata": {
+            **record["metadata"],
+            "companion_phone": "+977 9811111111",
+        },
+    })
+    assert updated.status_code == 200
+    assert updated.json()["record"]["metadata"]["companion_phone"] == "+977 9811111111"
+    assert updated.json()["record"]["check_on_me"]["enabled"] is False
 
 
 def test_safety_card_defaults_to_check_on_me():

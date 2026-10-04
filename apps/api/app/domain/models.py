@@ -3,6 +3,7 @@ from enum import Enum
 from typing import List, Dict, Any, Optional, Union, Literal
 from pydantic import BaseModel, Field, EmailStr, field_validator
 import html
+import re
 
 # --- ENUMS ---
 
@@ -125,8 +126,11 @@ class WeekPattern(str, Enum):
 def sanitize_text(v: Optional[str]) -> Optional[str]:
     if v is None:
         return None
-    # Strip HTML and control characters
-    cleaned = html.escape(v.strip())
+    # Store readable plain text; API data is rendered as text by React, which
+    # escapes markup at the output boundary. Decode legacy entities first.
+    cleaned = html.unescape(v.strip())
+    cleaned = re.sub(r"<[^>]*>", "", cleaned)
+    cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", cleaned)
     return cleaned
 
 class Provenance(BaseModel):
@@ -190,6 +194,8 @@ class TravelMeta(BaseModel):
     eta: Optional[datetime] = None
     mode: str = Field(default="cab", max_length=30)
     companions: List[str] = Field(default_factory=list)
+    companion_phone: Optional[str] = Field(default=None, max_length=20)
+    expected_return_at: Optional[datetime] = None
     vehicle_number: Optional[str] = Field(default=None, max_length=30)
     driver_name: Optional[str] = Field(default=None, max_length=50)
     driver_phone: Optional[str] = Field(default=None, max_length=20)

@@ -76,7 +76,7 @@ export default function MessagesCardPage() {
         title="Messages"
         action={
           <Link href="/me">
-            <span className="text-[14px] font-semibold text-[var(--primary)]">← Back</span>
+            <span className="text-[14px] font-semibold text-[var(--primary)]">← All cards</span>
           </Link>
         }
       />

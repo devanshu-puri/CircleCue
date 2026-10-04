@@ -183,6 +183,10 @@ class RulesProvider:
         travel_match = re.search(r"\b(going|heading|travelling|traveling|flight|train|trip|leaving for|leaving to|ja\s+raha|reached|arrived|on the way|travel)\b", lowered)
         if travel_match:
             dest_m = re.search(r"\b(?:going to|heading to|leaving for|leaving to|flight to|trip to)\s+([A-Za-z0-9\s]+?)(?=\s+tomorrow|\s+at\b|\s+with\b|\s+for\b|\s*,|$)", text, re.IGNORECASE)
+            if not dest_m:
+                dest_m = re.search(r"\b(?:going|heading)\s+for\s+(?:lunch|dinner|breakfast)\s+at\s+([A-Za-z0-9\s]+?)(?=\s+tomorrow|\s+with\b|\s*,|$)", text, re.IGNORECASE)
+            if not dest_m:
+                dest_m = re.search(r"\bgoing\s+to\s+([A-Za-z0-9\s]+?)(?=\s+tomorrow|\s+at\b|\s+with\b|\s+for\b|\s*,|\.|$)", text, re.IGNORECASE)
             destination = dest_m.group(1).strip() if dest_m else None
             if not destination and "delhi" in lowered:
                 destination = "Delhi"
@@ -191,8 +195,11 @@ class RulesProvider:
             elif not destination and "home" in lowered:
                 destination = "Home"
 
-            companion_m = re.search(r"\bwith\s+([A-Za-z]+)", text)
+            companion_m = re.search(r"\bwith\s+(?:my\s+)?(?:friend\s+)?([A-Za-z]+)", text, re.IGNORECASE)
             companion = companion_m.group(1) if companion_m else None
+            if companion_m and companion.lower() == "friend":
+                name_after_friend = re.search(r"\bwith\s+my\s+friend\s+([A-Za-z]+)", text, re.IGNORECASE)
+                companion = name_after_friend.group(1) if name_after_friend else None
             if "with family" in lowered:
                 companion = "Family"
 

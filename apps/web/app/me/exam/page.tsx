@@ -112,7 +112,7 @@ export default function ExamCardPage() {
         title="Exams"
         action={
           <Link href="/me">
-            <span className="text-[14px] font-semibold text-[var(--primary)]">← Back</span>
+            <span className="text-[14px] font-semibold text-[var(--primary)]">← All cards</span>
           </Link>
         }
       />

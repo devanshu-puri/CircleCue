@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
@@ -29,7 +29,20 @@ def test_user_name_sanitization():
         pw_hash="hashed_password"
     )
     assert "<script>" not in user.name
-    assert "&lt;script&gt;" in user.name
+    assert "alert('xss')Arjun" == user.name
+
+
+def test_activity_text_is_readable_and_markup_is_removed():
+    now = datetime.now(timezone.utc)
+    activity = Activity(
+        owner="user_1",
+        type=ActivityType.STUDY,
+        title="Studying Till 8, No Calls&quot;",
+        start_at=now,
+        expected_end_at=now + timedelta(hours=1),
+        provenance=Provenance(source=ProvenanceSource.USER_SHARED),
+    )
+    assert activity.title == 'Studying Till 8, No Calls"'
 
 def test_activity_model_validation():
     now = datetime.now(timezone.utc)

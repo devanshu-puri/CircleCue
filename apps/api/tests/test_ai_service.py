@@ -120,6 +120,32 @@ async def test_rules_provider_parses_demo_utterances(text, expected_kinds):
 
 
 @pytest.mark.asyncio
+async def test_rules_provider_understands_lunch_at_destination_and_followup_eta():
+    import json
+
+    from datetime import datetime, timezone
+
+    provider = RulesProvider()
+    output = await provider.generate_structured(
+        system="parse",
+        user=json.dumps({
+            "text": "i am going for lunch with my friend rakka. going to hostel mess. arrive in 10 min",
+            "now": datetime(2026, 10, 3, 10, tzinfo=timezone.utc).isoformat(),
+            "tz": "Asia/Kolkata",
+            "connection_names": ["Rakka"],
+        }),
+        json_schema=ParseResult.model_json_schema(),
+        timeout=1.0,
+    )
+    result = ParseResult.model_validate(output)
+    travel = next(item for item in result.items if item.kind == "travel")
+
+    assert travel.destination == "hostel mess"
+    assert travel.eta.relative_min == 10
+    assert travel.companion == "rakka"
+
+
+@pytest.mark.asyncio
 async def test_rules_provider_builds_time_scenario_without_persisting_it():
     import json
 

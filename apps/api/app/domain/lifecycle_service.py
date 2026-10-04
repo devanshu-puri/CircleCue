@@ -67,7 +67,7 @@ def transition(
     if payload:
         for field in (
             "title", "expected_end_at", "availability", "metadata",
-            "visibility", "participants",
+            "visibility", "participants", "check_on_me",
         ):
             if field in payload:
                 updated[field] = payload[field]
@@ -85,6 +85,7 @@ def transition(
             meta = dict(updated.get("metadata", {}))
             meta["eta"] = payload["new_eta"]
             updated["metadata"] = meta
+            updated["expected_end_at"] = payload["new_eta"]
             current_phase = TravelPhase(activity.get("phase", TravelPhase.PLANNED.value))
             if not can_transition_travel_phase(current_phase, TravelPhase.DELAYED):
                 raise StateConflictError(

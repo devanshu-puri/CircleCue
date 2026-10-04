@@ -22,6 +22,8 @@ import {
   subscribeToNotifications,
   parseText,
   confirmDraft,
+  getCards,
+  updateCard,
   type NotificationItem,
   type ViewerState,
   type ParseResult,
@@ -43,9 +45,9 @@ function resolveStatus(state: ViewerState | null) {
   const isBusy = calls === "no" || calls === "prefer_not";
 
   const activity = state.activity as Record<string, any> | null | undefined;
-  const title = activity?.label ?? activity?.type ?? (isBusy ? "Busy" : "Available");
+  const title = readableText(activity?.label ?? activity?.type ?? (isBusy ? "Busy" : "Available"));
 
-  let detail = reachability.reason || (calls === "no" ? "Calls: not now" : (calls === "prefer_not" ? "Calls: prefer not" : "Calls: ok"));
+  let detail = readableText(reachability.reason || (calls === "no" ? "Calls: not now" : (calls === "prefer_not" ? "Calls: prefer not" : "Calls: ok")));
   if (reachability.free_in_min) {
     detail = `${detail} · Free in ~${reachability.free_in_min}m`;
   } else if (reachability.until) {
@@ -67,6 +69,16 @@ function resolveStatus(state: ViewerState | null) {
   };
 }
 
+function readableText(value: string): string {
+  return value
+    .replace(/&quot;|&#34;|&#x22;/gi, '"')
+    .replace(/&apos;|&#39;|&#x27;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&nbsp;/gi, " ");
+}
+
 export default function HomePage() {
   const { user } = useRequireAuth();
   const [state, setState] = useState<ViewerState | null>(null);
@@ -82,6 +94,7 @@ export default function HomePage() {
   const [missingAnswers, setMissingAnswers] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
   const [composeSuccess, setComposeSuccess] = useState(false);
+  const [finishingActivity, setFinishingActivity] = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -111,6 +124,33 @@ export default function HomePage() {
 
   const currentStatus = useMemo(() => resolveStatus(state), [state]);
 
+  async function handleFinishActivity() {
+    if (!state?.activity) return;
+    setFinishingActivity(true);
+    setError(null);
+    try {
+      const cards = await getCards("live");
+      const candidates = (Array.isArray(cards) ? cards : []).filter((card: any) =>
+        card.type === state.activity?.type &&
+        readableText(card.title || "") === readableText(state.activity?.label || "") &&
+        ["ACTIVE", "EXTENDED", "DELAYED", "CHANGED"].includes(card.status)
+      );
+      const current = candidates.sort((a: any, b: any) =>
+        new Date(b.start_at || 0).getTime() - new Date(a.start_at || 0).getTime()
+      )[0];
+      if (!current) throw new Error("Could not find the active update to finish. Refresh and try again.");
+      await updateCard("live", current._id || current.id, {
+        status: "COMPLETED",
+        version: current.version || 1,
+      });
+      await loadData();
+    } catch (caught: any) {
+      setError(caught.message || "Could not finish this update.");
+    } finally {
+      setFinishingActivity(false);
+    }
+  }
+
   async function handleParse() {
     if (!composeText.trim()) return;
     setParseLoading(true);
@@ -130,12 +170,20 @@ export default function HomePage() {
     if (!parsedDraft) return;
     setConfirming(true);
     try {
-      const answeredMissing = parsedDraft.missing.filter((missing) => missingAnswers[missing.field]?.trim());
+      const answeredMissing = parsedDraft.missing.filter((missing) =>
+        ["destination", "eta", "companion"].includes(missing.field) && missingAnswers[missing.field]?.trim()
+      );
       if (answeredMissing.length > 0) {
         const addedDetails = answeredMissing
-          .map((missing) => `${missing.field}: ${missingAnswers[missing.field].trim()}`)
-          .join("; ");
-        const revised = await parseText(`${composeText.trim()}. Additional details: ${addedDetails}`);
+          .map((missing) => {
+            const answer = missingAnswers[missing.field].trim();
+            if (missing.field === "destination") return `going to ${answer}`;
+            if (missing.field === "companion") return `with ${answer}`;
+            const relative = answer.match(/(?:within|in)\s+(\d+)\s*(minutes?|mins?|hours?|hrs?)/i);
+            return relative ? `arrive in ${relative[1]} ${relative[2]}` : `arrive at ${answer}`;
+          })
+          .join(". ");
+        const revised = await parseText(`${composeText.trim()}. ${addedDetails}`);
         setParsedDraft(revised);
         setMissingAnswers({});
         setError(null);
@@ -210,10 +258,15 @@ export default function HomePage() {
               <PillButton variant="ghost">Manage Cards</PillButton>
             </Link>
           </div>
+          {state?.activity?.layer === 2 && (
+            <PillButton variant="ghost" onClick={handleFinishActivity} disabled={finishingActivity} className="mt-3 w-full">
+              {finishingActivity ? "Updating status…" : "I’m free now · finish this update"}
+            </PillButton>
+          )}
         </Tile>
 
         {/* Quick Compose Input trigger */}
-        <Tile tone="parchment" className="p-4">
+        <Tile id="today-summary" tone="parchment" className="p-4">
           <div onClick={() => setComposeOpen(true)} className="cursor-pointer">
             <SearchInput placeholder="What’s happening? (e.g. lab till 4, no calls)" />
           </div>
@@ -250,7 +303,7 @@ export default function HomePage() {
                 action={<span className="text-[12px] font-semibold text-[var(--primary)]">ETA</span>}
               />
             </Link>
-            <Link href="/me">
+            <Link href="/me#phone-card">
               <UtilityCard
                 title="Phone"
                 subtitle={state?.phone ? (state.phone.mode === "silent" ? "Silent" : "Healthy") : "Healthy"}
@@ -275,7 +328,7 @@ export default function HomePage() {
                       : "Next boundary"}
                   </p>
                   <p className="text-[13px] text-[var(--ink-muted-48)]">
-                    {state?.activity ? "Next state boundary" : "Routine baseline active"}
+                    {state?.activity ? `Next state boundary · ${state.activity.label}` : "Routine baseline active"}
                   </p>
                 </div>
                 <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--ink-muted-48)]">
@@ -315,7 +368,7 @@ export default function HomePage() {
         <div className="flex flex-col gap-4">
           {error && <p role="alert" className="text-[14px] text-[var(--danger)]">{error}</p>}
           <p className="text-[13px] text-[var(--ink-muted-80)]">
-            Tell CircleCue in plain words (e.g. &quot;studying till 8, no calls&quot; or &quot;leaving for Delhi tomorrow 8am&quot;).
+            Tell CircleCue in plain words (e.g. “studying till 8, no calls” or “leaving for Delhi tomorrow 8am”).
           </p>
 
           <textarea
@@ -361,7 +414,11 @@ export default function HomePage() {
                 </div>
               ))}
 
-              {parsedDraft.missing.length > 0 && (
+              {parsedDraft.intent === "unknown" && parsedDraft.items.length === 0 ? (
+                <p className="rounded-[var(--r-sm)] bg-[var(--canvas)] p-3 text-[14px] text-[var(--ink-muted-80)]">
+                  I couldn’t identify an update to save. Try describing an activity, travel plan, phone status, or message.
+                </p>
+              ) : parsedDraft.missing.length > 0 && (
                 <div className="flex flex-col gap-2 mt-2">
                   <p className="text-[13px] font-semibold text-[var(--ink)]">Missing details:</p>
                   {parsedDraft.missing.map((m) => (
@@ -388,7 +445,7 @@ export default function HomePage() {
                   <PillButton
                     variant="primary"
                     onClick={handleConfirm}
-                    disabled={confirming || (parsedDraft.missing.length > 0 && parsedDraft.missing.some((missing) => !missingAnswers[missing.field]?.trim()))}
+                    disabled={confirming || (parsedDraft.intent === "unknown" && parsedDraft.items.length === 0) || (parsedDraft.missing.length > 0 && parsedDraft.missing.some((missing) => ["destination", "eta", "companion"].includes(missing.field) && !missingAnswers[missing.field]?.trim()))}
                     className="flex-1"
                   >
                     {confirming ? "Updating..." : parsedDraft.missing.length > 0 ? "Update Draft & Review" : "Confirm & Apply"}

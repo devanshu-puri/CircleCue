@@ -288,6 +288,8 @@ def test_each_state_card_redacts_status_and_restores_details(activity_type, card
         travel={
             "destination": "Home", "destination_kind": "home",
             "companions": ["u3"], "vehicle_number": "CAB-12",
+            "companion_phone": "+1 555 0100",
+            "expected_return_at": "2026-10-05T10:00:00+00:00",
         },
         exam={"state": "in_progress", "subject": "Physics", "exams_today": 1},
     )
@@ -308,6 +310,8 @@ def test_each_state_card_redacts_status_and_restores_details(activity_type, card
     if card == CardKey.TRAVEL:
         assert detail_field not in status_state.travel
         assert details_state.travel[detail_field] == "Home"
+        assert "companion_phone" not in status_state.travel
+        assert details_state.travel["companion_phone"] == "+1 555 0100"
     elif card == CardKey.PHONE:
         assert detail_field not in status_state.phone
         assert details_state.phone[detail_field] == 5

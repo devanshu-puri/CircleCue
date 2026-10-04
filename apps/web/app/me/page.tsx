@@ -17,6 +17,8 @@ import {
   pauseSharing,
   type UserProfile,
   createCard,
+  getCards,
+  updateCard,
 } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 
@@ -32,6 +34,7 @@ export default function MeHubPage() {
   const [batteryPct, setBatteryPct] = useState<number | string>("");
   const [savingPhone, setSavingPhone] = useState(false);
   const [phoneMsg, setPhoneMsg] = useState("");
+  const [phoneRecord, setPhoneRecord] = useState<any | null>(null);
 
   async function loadProfile() {
     setLoading(true);
@@ -39,6 +42,13 @@ export default function MeHubPage() {
       const data = await getMe();
       setProfile(data);
       setIsPaused(!!data.sharing_paused?.active);
+      const phones = await getCards("phone");
+      const phone = Array.isArray(phones) ? phones[0] : null;
+      if (phone) {
+        setPhoneRecord(phone);
+        setPhoneMode(phone.mode || "normal");
+        setBatteryPct(phone.battery_pct ?? "");
+      }
     } catch {
       // Ignored
     } finally {
@@ -63,11 +73,21 @@ export default function MeHubPage() {
   async function handleSavePhone() {
     setSavingPhone(true);
     try {
-      await createCard("phone", {
+      const payload = {
         mode: phoneMode,
-        battery_pct: batteryPct !== "" ? Number(batteryPct) : null,
-        may_go_offline: Number(batteryPct) <= 10,
-      });
+        battery_pct: batteryPct !== "" ? Number(batteryPct) : phoneRecord?.battery_pct ?? 100,
+        may_go_offline: batteryPct !== "" ? Number(batteryPct) <= 10 : phoneRecord?.may_go_offline ?? false,
+      };
+      if (phoneRecord) {
+        const saved = await updateCard("phone", phoneRecord._id || profile?.id || "", {
+          ...payload,
+          version: phoneRecord.version || 1,
+        });
+        setPhoneRecord(saved.record || saved);
+      } else {
+        const saved = await createCard("phone", payload);
+        setPhoneRecord(saved.record || null);
+      }
       setPhoneMsg("✓ Phone state updated");
       setTimeout(() => setPhoneMsg(""), 2000);
     } finally {
@@ -173,10 +193,10 @@ export default function MeHubPage() {
         </Tile>
 
         {/* Quick Phone State Editor */}
-        <Tile tone="parchment" className="p-4">
+        <Tile id="phone-card" tone="parchment" className="p-4 scroll-mt-20">
           <h3 className="text-[16px] font-semibold text-[var(--ink)] mb-1">⚡ Quick Phone State</h3>
           <p className="text-[12px] text-[var(--ink-muted-80)] mb-3">
-            Broadcast phone battery or silent status to trusted circle.
+            Broadcast ringer mode and battery level to your trusted circle.
           </p>
 
           <div className="flex flex-col gap-3">
@@ -194,7 +214,7 @@ export default function MeHubPage() {
                         : "bg-[var(--canvas)] text-[var(--ink-muted-80)] border border-[var(--hairline)]"
                     }`}
                   >
-                    {m}
+                  {m === "normal" ? "Ring" : m === "silent" ? "Silent" : "DND"}
                   </button>
                 ))}
               </div>
