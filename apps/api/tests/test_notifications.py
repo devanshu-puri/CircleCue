@@ -42,6 +42,23 @@ def test_candidate_requires_grant_and_opt_in_flag():
     assert should_notify(NotificationKind.FREE_NOW, grant, now) is False
 
 
+def test_live_activity_alert_requires_live_access_and_activity_opt_in():
+    now = datetime.now(timezone.utc)
+    grant = Grant(
+        owner="u1",
+        viewer="u2",
+        cards=CardGrants(live=AccessLevel.STATUS),
+        notify=NotifyFlags(activity=False),
+    )
+
+    assert should_notify(NotificationKind.ACTIVITY_STARTED, grant, now) is False
+    grant.notify.activity = True
+    assert should_notify(NotificationKind.ACTIVITY_STARTED, grant, now) is True
+    assert should_notify(NotificationKind.ACTIVITY_EXTENDED, grant, now) is True
+    grant.cards.live = AccessLevel.NONE
+    assert should_notify(NotificationKind.ACTIVITY_STARTED, grant, now) is False
+
+
 def test_arrival_copy_is_neutral_and_travel_copy_uses_only_projected_fields():
     now = datetime.now(timezone.utc)
     state = ViewerState(
@@ -93,6 +110,44 @@ async def test_event_engine_persists_once_for_opted_in_granted_viewer(mock_db):
     notification = next(iter(mock_db.notifications.docs.values()))
     assert notification["payload_redacted"]["text"] == "Free. Call?"
     assert notification["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_live_activity_start_reaches_viewer_with_activity_opt_in(mock_db):
+    now = datetime(2026, 10, 3, 12, tzinfo=timezone.utc)
+    mock_db.users.docs["owner"] = {
+        "_id": "owner", "name": "Owner Person", "tz": "UTC",
+        "routine_prefs": {"wake": "07:00", "sleep": "23:00"},
+        "sharing_paused": {"active": False},
+    }
+    mock_db.users.docs["viewer"] = {
+        "_id": "viewer", "name": "Viewer Person", "tz": "UTC",
+        "routine_prefs": {"wake": "07:00", "sleep": "07:00"},
+        "sharing_paused": {"active": False},
+    }
+    await mock_db.connections.insert_one({
+        "_id": "connection", "a": "owner", "b": "viewer", "status": "active",
+    })
+    await mock_db.grants.insert_one({
+        "_id": "live-grant", "owner": "owner", "viewer": "viewer",
+        "cards": {"live": "status"}, "notify": {"activity": True},
+        "revoked_at": None, "expires_at": None,
+    })
+    await mock_db.activities.insert_one({
+        "_id": "study-1", "owner": "owner", "type": "STUDY",
+        "title": "Studying until 8", "status": "ACTIVE",
+        "start_at": now, "expected_end_at": now.replace(hour=20),
+        "availability": {"calls": "no", "messages": "ok"},
+        "version": 1, "created_at": now, "updated_at": now,
+    })
+
+    delivered = await process_event(
+        mock_db, DomainEvent("ACTIVITY_STARTED", "owner", "study-1", now), now
+    )
+
+    assert len(delivered) == 1
+    assert delivered[0]["to"] == "viewer"
+    assert delivered[0]["payload_redacted"]["text"] == "Studying until 8"
 
 
 @pytest.mark.asyncio
@@ -198,4 +253,4 @@ def test_dev_tick_advances_clock_and_returns_status(mock_db):
     data = response.json()
     assert data["status"] == "ok"
     assert data["advanced_minutes"] == 15
-    assert "now" in data
+    assert "now" in data

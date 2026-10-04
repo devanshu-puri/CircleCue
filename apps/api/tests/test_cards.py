@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.routers import cards as cards_router
 
 
 def test_registry_driven_schedule_card_create_and_list():
@@ -104,7 +105,14 @@ def test_schedule_card_patch_and_delete():
     assert client.get("/cards/schedule").json() == []
 
 
-def test_live_activity_update_checks_version_and_lifecycle():
+def test_live_activity_update_checks_version_and_lifecycle(monkeypatch):
+    events = []
+
+    async def capture_event(_db, event, _now):
+        events.append(event)
+        return []
+
+    monkeypatch.setattr(cards_router, "publish_and_process", capture_event)
     client = TestClient(app)
     register = client.post("/auth/register", json={
         "name": "Activity Owner",
@@ -127,6 +135,7 @@ def test_live_activity_update_checks_version_and_lifecycle():
     assert updated.status_code == 200
     assert updated.json()["record"]["status"] == "CHANGED"
     assert updated.json()["record"]["version"] == 2
+    assert events[-1].kind == "ACTIVITY_EXTENDED"
 
     stale = client.patch(f"/cards/live/{item_id}", json={
         "version": 1,

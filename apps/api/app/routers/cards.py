@@ -599,10 +599,12 @@ async def update_card(
             else:
                 event_kind = "PLAN_CHANGED"
         else:
-            event_kind = (
-                "ACTIVITY_CANCELLED" if target_status == Status.CANCELLED
-                else "ACTIVITY_CHANGED"
-            )
+            if target_status in (Status.CANCELLED, Status.COMPLETED, Status.EXPIRED):
+                event_kind = "CARD_CHANGED"
+            elif spec.key == CardKey.LIVE:
+                event_kind = "ACTIVITY_EXTENDED"
+            else:
+                event_kind = "CARD_CHANGED"
     else:
         expected_version = updates.pop("version", None)
         current_version = existing.get("version", 1)
@@ -639,6 +641,7 @@ async def update_card(
         event_kind = {
             CardKey.SCHEDULE: "SCHEDULE_CHANGED",
             CardKey.EXAM: "EXAM_SET_CHANGED",
+            CardKey.LIVE: "ACTIVITY_EXTENDED",
             CardKey.PHONE: "PHONE_STATE_CHANGED",
             CardKey.MESSAGE: "MESSAGE_DROP",
         }.get(spec.key, "CARD_CHANGED")

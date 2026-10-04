@@ -34,8 +34,8 @@ NOTIFICATION_POLICIES = {
     NotificationKind.EXAM_FINISHED: NotificationPolicy(CardKey.EXAM, AccessLevel.STATUS, "exam"),
     NotificationKind.CLASS_CANCELLED: NotificationPolicy(CardKey.SCHEDULE, AccessLevel.STATUS, "schedule_change"),
     NotificationKind.SCHEDULE_CHANGED: NotificationPolicy(CardKey.SCHEDULE, AccessLevel.STATUS, "schedule_change"),
-    NotificationKind.ACTIVITY_STARTED: NotificationPolicy(CardKey.LIVE, AccessLevel.STATUS),
-    NotificationKind.ACTIVITY_EXTENDED: NotificationPolicy(CardKey.LIVE, AccessLevel.STATUS),
+    NotificationKind.ACTIVITY_STARTED: NotificationPolicy(CardKey.LIVE, AccessLevel.STATUS, "activity"),
+    NotificationKind.ACTIVITY_EXTENDED: NotificationPolicy(CardKey.LIVE, AccessLevel.STATUS, "activity"),
     NotificationKind.TRAVEL_STARTED: NotificationPolicy(CardKey.TRAVEL, AccessLevel.STATUS, "travel"),
     NotificationKind.TRAVEL_DELAYED: NotificationPolicy(CardKey.TRAVEL, AccessLevel.STATUS, "travel"),
     NotificationKind.PLAN_CHANGED: NotificationPolicy(CardKey.TRAVEL, AccessLevel.STATUS, "travel"),
@@ -70,8 +70,6 @@ def should_notify(kind: NotificationKind, grant: Optional[Grant], now: datetime)
         return False
     if policy.notify_flag and not getattr(grant.notify, policy.notify_flag, False):
         return False
-    if kind in (NotificationKind.ACTIVITY_STARTED, NotificationKind.ACTIVITY_EXTENDED):
-        return bool(grant.important)
     return True
 
 

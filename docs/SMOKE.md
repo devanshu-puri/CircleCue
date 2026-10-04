@@ -75,6 +75,13 @@ Manual smoke steps for verification.
 7. Skip time past escalate: confirm safety-granted viewer receives `ARRIVAL_MISSING` notification (bypassing quiet hours and daily rate limit).
 8. Send late `arrived` signal or transition activity to `arrived`: confirm `ALL_CLEAR` notification is generated and delivered to viewer ("Arrival confirmed. All good.").
 9. Create a message with `promise_at`: verify `PromiseWorkflow` triggers `PROMISE_DUE` owner reminder if not marked done within 5 minutes.
+10. Grant a connected viewer LIVE STATUS and enable “Live activity updates”. Create a live activity and edit its title; confirm one `ACTIVITY_STARTED` and one `ACTIVITY_EXTENDED` alert appear in the viewer's inbox/SSE stream. Disable the activity notification toggle or revoke LIVE access and confirm no further alert is delivered.
+
+## M02/M10: Pause, dashboard log, and Today summary
+1. Pause sharing from the profile page. Reload and confirm the paused state remains active and a connected viewer sees no private context.
+2. Resume sharing from the profile page. Confirm the server response and `GET /me` both show `sharing_paused.active=false`; reload and verify it stays resumed.
+3. Create a timed live activity. Confirm Active Status Log lists it, remove it early, and verify its status is `COMPLETED` after reload. Leave a second item until its expected end and confirm it no longer appears once expired.
+4. Set the profile timezone to `Asia/Kolkata` while the browser uses another timezone. Confirm Today and status-log times display in the profile timezone; Today uses the active activity's own `until` time and readable label, or labels the next resolver boundary as a next change when the current activity has no end time.
 
 ## M09: Connection Reminders
 

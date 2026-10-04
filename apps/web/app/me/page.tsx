@@ -63,8 +63,8 @@ export default function MeHubPage() {
   async function handleTogglePause(val: boolean) {
     setPausing(true);
     try {
-      await pauseSharing(val);
-      setIsPaused(val);
+      const result = await pauseSharing(val);
+      setIsPaused(result.sharing_paused.active);
     } finally {
       setPausing(false);
     }

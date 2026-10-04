@@ -114,6 +114,7 @@ export interface CardGrants {
 
 export interface NotifyFlags {
   free_now: boolean;
+  activity: boolean;
   exam: boolean;
   travel: boolean;
   battery: boolean;
@@ -260,11 +261,13 @@ export async function updateRoutinePrefs(routine_prefs: UserProfile["routine_pre
   });
 }
 
-export async function pauseSharing(active: boolean, until?: string | null): Promise<{ message: string }> {
-  return fetchJson<{ message: string }>("/api/me/pause", {
-    method: "POST",
-    body: JSON.stringify({ active, until }),
-  });
+export async function pauseSharing(active: boolean, until?: string | null): Promise<{ sharing_paused: { active: boolean; until?: string | null } }> {
+  return active
+    ? fetchJson("/api/me/pause", {
+        method: "POST",
+        body: JSON.stringify({ until: until ?? null }),
+      })
+    : fetchJson("/api/me/pause", { method: "DELETE" });
 }
 
 export async function exportData(): Promise<Record<string, any>> {

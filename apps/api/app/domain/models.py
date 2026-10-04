@@ -168,6 +168,7 @@ class CardGrants(BaseModel):
 
 class NotifyFlags(BaseModel):
     free_now: bool = False
+    activity: bool = False
     exam: bool = False
     travel: bool = False
     battery: bool = False

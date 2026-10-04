@@ -90,6 +90,7 @@ export default function PermissionsAndAlertsPage() {
         },
         notify: {
           free_now: false,
+          activity: false,
           exam: false,
           travel: false,
           battery: false,
@@ -320,6 +321,11 @@ export default function PermissionsAndAlertsPage() {
                   label="When I become free"
                   checked={editingGrant.notify.free_now}
                   onChange={(v) => updateNotifyFlag("free_now", v)}
+                />
+                <Switch
+                  label="Live activity updates"
+                  checked={editingGrant.notify.activity}
+                  onChange={(v) => updateNotifyFlag("activity", v)}
                 />
                 <Switch
                   label="Exam updates"

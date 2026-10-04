@@ -31,7 +31,15 @@ import {
 } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 
-function resolveStatus(state: ViewerState | null) {
+function formatOwnerTime(value: string | Date, timeZone?: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
+function resolveStatus(state: ViewerState | null, timeZone?: string) {
   if (!state) {
     return {
       title: "Shared status",
@@ -54,7 +62,7 @@ function resolveStatus(state: ViewerState | null) {
   if (reachability.free_in_min) {
     detail = `${detail} · Free in ~${reachability.free_in_min}m`;
   } else if (reachability.until) {
-    detail = `${detail} · until ${new Date(reachability.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    detail = `${detail} · until ${formatOwnerTime(reachability.until, timeZone)}`;
   }
 
   const phoneMode = state.phone?.mode ?? "normal";
@@ -113,14 +121,15 @@ export default function HomePage() {
       const [nextState, nextNotifications, liveCards] = await Promise.all([
         getMyState(),
         getNotifications(),
-        getCards("live").catch(() => []),
+        getCards("live"),
       ]);
       setState(nextState);
       setNotifications(nextNotifications);
       const liveItems = Array.isArray(liveCards) ? liveCards : [];
+      const resolvedNow = new Date(nextState?.as_of || Date.now()).getTime();
       setActiveStatusEntries(liveItems
         .filter((item: any) => ["ACTIVE", "EXTENDED", "DELAYED", "CHANGED"].includes(item.status))
-        .filter((item: any) => !item.expected_end_at || new Date(item.expected_end_at).getTime() > Date.now())
+        .filter((item: any) => !item.expected_end_at || new Date(item.expected_end_at).getTime() > resolvedNow)
         .sort((a: any, b: any) => new Date(a.expected_end_at || "9999-12-31").getTime() - new Date(b.expected_end_at || "9999-12-31").getTime()));
       setError(null);
     } catch (caught: any) {
@@ -142,7 +151,7 @@ export default function HomePage() {
     };
   }, []);
 
-  const currentStatus = useMemo(() => resolveStatus(state), [state]);
+  const currentStatus = useMemo(() => resolveStatus(state, user?.tz), [state, user?.tz]);
 
   async function handleFinishActivity() {
     if (!state?.activity) return;
@@ -366,7 +375,7 @@ export default function HomePage() {
               {activeStatusEntries.map((entry: any) => {
                 const id = entry._id || entry.id;
                 const until = entry.expected_end_at
-                  ? new Date(entry.expected_end_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                  ? formatOwnerTime(entry.expected_end_at, user?.tz)
                   : null;
                 return (
                   <div key={id} className="flex min-h-14 items-center justify-between gap-3 rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] px-3 py-2">
@@ -437,12 +446,14 @@ export default function HomePage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[14px] font-semibold text-[var(--ink)]">
-                    {state?.next_boundary_at
-                      ? new Date(state.next_boundary_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-                      : "Next boundary"}
+                    {state?.activity?.until
+                      ? `Ends at ${formatOwnerTime(state.activity.until, user?.tz)}`
+                      : state?.next_boundary_at
+                        ? `Next change ${formatOwnerTime(state.next_boundary_at, user?.tz)}`
+                        : "No upcoming change"}
                   </p>
                   <p className="text-[13px] text-[var(--ink-muted-48)]">
-                    {state?.activity ? `Next state boundary · ${state.activity.label}` : "Routine baseline active"}
+                    {state?.activity ? readableText(state.activity.label || "Current activity") : "Routine baseline active"}
                   </p>
                 </div>
                 <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--ink-muted-48)]">

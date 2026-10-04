@@ -71,10 +71,12 @@ def test_auth_and_profile_flow():
     pause_resp = client.post("/me/pause")
     assert pause_resp.status_code == 200
     assert pause_resp.json()["sharing_paused"]["active"] is True
+    assert client.get("/me").json()["sharing_paused"]["active"] is True
 
     unpause_resp = client.delete("/me/pause")
     assert unpause_resp.status_code == 200
     assert unpause_resp.json()["sharing_paused"]["active"] is False
+    assert client.get("/me").json()["sharing_paused"]["active"] is False
 
     # 6. Data Export
     export_resp = client.get("/me/export")
