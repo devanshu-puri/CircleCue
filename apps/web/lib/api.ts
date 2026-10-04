@@ -230,29 +230,29 @@ export async function logout(): Promise<void> {
 
 // ----------------- Profile & Me -----------------
 export async function getMe(): Promise<UserProfile> {
-  return fetchJson<UserProfile>("/api/users/me");
+  return fetchJson<UserProfile>("/api/me");
 }
 
 export async function updateRoutinePrefs(routine_prefs: UserProfile["routine_prefs"]): Promise<UserProfile> {
-  return fetchJson<UserProfile>("/api/users/me/routine", {
+  return fetchJson<UserProfile>("/api/me/routine", {
     method: "PATCH",
     body: JSON.stringify(routine_prefs),
   });
 }
 
 export async function pauseSharing(active: boolean, until?: string | null): Promise<{ message: string }> {
-  return fetchJson<{ message: string }>("/api/users/me/pause", {
+  return fetchJson<{ message: string }>("/api/me/pause", {
     method: "POST",
     body: JSON.stringify({ active, until }),
   });
 }
 
 export async function exportData(): Promise<Record<string, any>> {
-  return fetchJson<Record<string, any>>("/api/users/me/export");
+  return fetchJson<Record<string, any>>("/api/me/export");
 }
 
 export async function deleteAccount(): Promise<{ message: string }> {
-  return fetchJson<{ message: string }>("/api/users/me", { method: "DELETE" });
+  return fetchJson<{ message: string }>("/api/me", { method: "DELETE" });
 }
 
 // ----------------- State & Visibility -----------------
@@ -284,7 +284,7 @@ export async function getConnections(): Promise<Connection[]> {
 }
 
 export async function lookupUser(code: string): Promise<UserProfile> {
-  return fetchJson<UserProfile>(`/api/users/lookup?code=${encodeURIComponent(code)}`);
+  return fetchJson<UserProfile>(`/api/users/code-lookup?code=${encodeURIComponent(code)}`);
 }
 
 export async function sendConnectionRequest(userCode: string): Promise<Connection> {
