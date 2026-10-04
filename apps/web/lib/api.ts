@@ -157,14 +157,21 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
     url = `${baseUrl}${input.replace(/^\/api/, "")}`;
   }
 
+  const token = typeof window !== "undefined" ? localStorage.getItem("circlecue_token") : null;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...((init?.headers as Record<string, string>) ?? {}),
+  };
+
+  if (token && !headers["Authorization"]) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     ...init,
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -188,10 +195,14 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
 
 // ----------------- Auth -----------------
 export async function login(email: string, password: string): Promise<UserProfile> {
-  return fetchJson<UserProfile>("/api/auth/login", {
+  const res = await fetchJson<UserProfile & { token?: string }>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  if (typeof window !== "undefined" && res.token) {
+    localStorage.setItem("circlecue_token", res.token);
+  }
+  return res;
 }
 
 export async function register(
@@ -200,13 +211,20 @@ export async function register(
   password: string,
   tz: string = "UTC",
 ): Promise<UserProfile> {
-  return fetchJson<UserProfile>("/api/auth/register", {
+  const res = await fetchJson<UserProfile & { token?: string }>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ name, email, password, tz }),
   });
+  if (typeof window !== "undefined" && res.token) {
+    localStorage.setItem("circlecue_token", res.token);
+  }
+  return res;
 }
 
 export async function logout(): Promise<void> {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("circlecue_token");
+  }
   await fetchJson("/api/auth/logout", { method: "POST" });
 }
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Response, Depends, status
+from fastapi import APIRouter, Response, Request, Depends, status
 from pydantic import BaseModel, EmailStr, Field
 from bson import ObjectId
 
@@ -28,9 +28,10 @@ class AuthResponse(BaseModel):
     email: str
     user_code: str
     tz: str
+    token: Optional[str] = None
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register(req: RegisterRequest, response: Response):
+async def register(req: RegisterRequest, response: Response, request: Request):
     db = get_db()
     email_clean = req.email.strip().lower()
     
@@ -67,13 +68,14 @@ async def register(req: RegisterRequest, response: Response):
     
     # Set JWT in httpOnly cookie
     token = create_access_token(new_id)
+    is_https = request.url.scheme == "https"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        secure=False, # Set to True in production HTTPS
-        samesite="lax",
-        max_age=604800 # 7 days
+        secure=is_https,
+        samesite="none" if is_https else "lax",
+        max_age=604800
     )
 
     await log_audit_event(actor=new_id, action="USER_REGISTER", target=new_id)
@@ -94,11 +96,12 @@ async def register(req: RegisterRequest, response: Response):
         name=req.name.strip(),
         email=email_clean,
         user_code=user_code,
-        tz=req.tz or "UTC"
+        tz=req.tz or "UTC",
+        token=token
     )
 
 @router.post("/login", response_model=AuthResponse)
-async def login(req: LoginRequest, response: Response):
+async def login(req: LoginRequest, response: Response, request: Request):
     db = get_db()
     email_clean = req.email.strip().lower()
     
@@ -110,12 +113,13 @@ async def login(req: LoginRequest, response: Response):
     user_id = str(user["_id"])
     token = create_access_token(user_id)
     
+    is_https = request.url.scheme == "https"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=is_https,
+        samesite="none" if is_https else "lax",
         max_age=604800
     )
 
@@ -126,7 +130,8 @@ async def login(req: LoginRequest, response: Response):
         name=user["name"],
         email=user["email"],
         user_code=user["user_code"],
-        tz=user.get("tz", "UTC")
+        tz=user.get("tz", "UTC"),
+        token=token
     )
 
 @router.post("/logout")
