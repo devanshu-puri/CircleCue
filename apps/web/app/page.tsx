@@ -299,6 +299,21 @@ export default function HomePage() {
       />
 
       <main className="mx-auto flex max-w-[390px] flex-col gap-4 px-4 py-5">
+        <h2
+          aria-label="Helping friends stay in sync, without interrupting"
+          className="text-[21px] font-semibold leading-[1.2] tracking-[-0.2px] text-[var(--ink)]"
+        >
+          <span aria-hidden="true">
+            Helping{" "}
+            <span className="headline-flip" aria-hidden="true">
+              <span>Friends</span>
+              <span>Family</span>
+              <span>Loved ones</span>
+            </span>
+            <br />Stay in Sync, Without Interrupting
+          </span>
+        </h2>
+
         {/* Main Status Tile (light = reachable, dark = busy) */}
         <Tile tone={currentStatus.tone} className="p-5 transition-colors">
           <div className="flex items-center justify-between">

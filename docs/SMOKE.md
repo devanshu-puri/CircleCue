@@ -83,6 +83,7 @@ Manual smoke steps for verification.
 13. Verify normal alerts stop after the documented 20-per-owner/viewer rolling-day cap, duplicate same-kind updates within the 5-minute dedupe window are collapsed, and urgent safety alerts still arrive. Pause or revoke the owner's sharing and confirm inbox reads and live delivery no longer expose their data.
 
 ## M02/M10: Pause, dashboard log, and Today summary
+0. Open Today at mobile width. Confirm the headline above Shared Status flips Friends → Family → Loved ones and back without shifting the surrounding cards. Enable the operating-system reduced-motion preference and confirm the word stays static as Friends.
 1. Pause sharing from the profile page. Reload and confirm the paused state remains active and a connected viewer sees no private context.
 2. Resume sharing from the profile page. Confirm the server response and `GET /me` both show `sharing_paused.active=false`; reload and verify it stays resumed.
 3. Create a timed live activity. Confirm Active Status Log lists it, remove it early, and verify its status is `COMPLETED` after reload. Leave a second item until its expected end and confirm it no longer appears once expired.
