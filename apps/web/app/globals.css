@@ -4,11 +4,47 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --font-inter: "Inter", sans-serif;
+}
+
+html {
+  font-family: var(--font-text);
+  background: var(--canvas);
+  color: var(--body);
+}
+
 body {
   margin: 0;
+  min-height: 100vh;
   padding: 0;
-  background-color: var(--canvas);
+  background: var(--canvas);
   color: var(--body);
-  font-family: var(--font-text);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

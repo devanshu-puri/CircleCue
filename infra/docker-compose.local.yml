@@ -42,13 +42,32 @@ services:
       - ENV=development
       - MONGODB_URI=mongodb://mongo:27017/circlecue
       - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_ENABLED=true
       - AI_PROVIDER=ollama
       - AI_BASE_URL=http://ollama:11434/v1
       - AI_MODEL=gemma2:2b
     depends_on:
       mongo:
         condition: service_healthy
+      temporal:
+        condition: service_started
 
+  worker:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: circlecue-worker
+    command: ["python", "-m", "app.workflows.worker"]
+    environment:
+      - ENV=development
+      - MONGODB_URI=mongodb://mongo:27017/circlecue
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_ENABLED=true
+    depends_on:
+      mongo:
+        condition: service_healthy
+      temporal:
+        condition: service_started
   web:
     build:
       context: ../apps/web

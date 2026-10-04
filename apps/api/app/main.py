@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from typing import Dict, Any
 from fastapi import FastAPI, Depends, status, HTTPException
 import sentry_sdk
@@ -7,8 +8,22 @@ from sentry_sdk.integrations.fastapi import FastApiIntegration
 from app.config import settings
 from app.core.errors import setup_exception_handlers, CircleCueError
 from app.clock import get_clock, Clock, DemoClock, set_global_clock
+from app.routers import auth, users, connections, grants, state, cards, ai, scenarios, notifications, dev, reminders
 
 logger = logging.getLogger("circlecue")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.TEMPORAL_ENABLED:
+        try:
+            from app.workflows.client import resync_timelines
+            from app.db import get_db
+            await resync_timelines(get_db())
+        except Exception:
+            pass
+    yield
+
 
 def create_app() -> FastAPI:
     if settings.SENTRY_DSN:
@@ -30,9 +45,30 @@ def create_app() -> FastAPI:
         version="0.1.0",
         docs_url="/docs" if settings.ENV == "development" else None,
         redoc_url=None,
+        lifespan=lifespan,
     )
 
     setup_exception_handlers(app)
+
+    @app.middleware("http")
+    async def add_security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    app.include_router(auth.router)
+    app.include_router(users.router)
+    app.include_router(connections.router)
+    app.include_router(grants.router)
+    app.include_router(state.router)
+    app.include_router(cards.router)
+    app.include_router(ai.router)
+    app.include_router(scenarios.router)
+    app.include_router(notifications.router)
+    app.include_router(dev.router)
+    app.include_router(reminders.router)
 
     @app.get("/healthz", status_code=status.HTTP_200_OK)
     async def healthz() -> Dict[str, str]:

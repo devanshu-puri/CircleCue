@@ -1,0 +1,60 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: 'var(--primary)',
+        'primary-focus': 'var(--primary-focus)',
+        'primary-on-dark': 'var(--primary-on-dark)',
+        ink: 'var(--ink)',
+        body: 'var(--body)',
+        'body-on-dark': 'var(--body-on-dark)',
+        'body-muted': 'var(--body-muted)',
+        'ink-muted-80': 'var(--ink-muted-80)',
+        'ink-muted-48': 'var(--ink-muted-48)',
+        'divider-soft': 'var(--divider-soft)',
+        hairline: 'var(--hairline)',
+        canvas: 'var(--canvas)',
+        'canvas-parchment': 'var(--canvas-parchment)',
+        'surface-pearl': 'var(--surface-pearl)',
+        'surface-tile-1': 'var(--surface-tile-1)',
+        'surface-tile-2': 'var(--surface-tile-2)',
+        'surface-tile-3': 'var(--surface-tile-3)',
+        'surface-black': 'var(--surface-black)',
+        'surface-chip-translucent': 'var(--surface-chip-translucent)',
+        'on-primary': 'var(--on-primary)',
+        'on-dark': 'var(--on-dark)',
+        danger: 'var(--danger)',
+      },
+      borderRadius: {
+        xs: 'var(--r-xs)',
+        sm: 'var(--r-sm)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+        pill: 'var(--r-pill)',
+      },
+      spacing: {
+        xxs: 'var(--s-xxs)',
+        xs: 'var(--s-xs)',
+        sm: 'var(--s-sm)',
+        md: 'var(--s-md)',
+        lg: 'var(--s-lg)',
+        xl: 'var(--s-xl)',
+        xxl: 'var(--s-xxl)',
+        section: 'var(--s-section)',
+      },
+      fontFamily: {
+        display: ['var(--font-display)', 'sans-serif'],
+        text: ['var(--font-text)', 'sans-serif'],
+        inter: ['var(--font-inter)', 'sans-serif'],
+      },
+    },
+  },
+  corePlugins: {
+    preflight: true,
+  },
+};

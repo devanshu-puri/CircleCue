@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     TEMPORAL_ADDRESS: str = "localhost:7233"
     TEMPORAL_NAMESPACE: str = "default"
     TEMPORAL_API_KEY: Optional[str] = None
+    TEMPORAL_ENABLED: bool = False
     
     # Monitoring & Extras
     SENTRY_DSN: Optional[str] = None

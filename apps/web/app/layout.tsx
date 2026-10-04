@@ -1,5 +1,11 @@
+import { Inter } from "next/font/google";
 import "./globals.css";
-import React from "react";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata = {
   title: "CircleCue",
@@ -13,12 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
-        <main className="min-h-screen bg-[var(--canvas)] text-[var(--body)]">
-          {children}
-        </main>
-      </body>
+    <html lang="en" className={inter.variable}>
+      <body>{children}</body>
     </html>
   );
 }

@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: circlecue-web
+    env: node
+    buildCommand: cd apps/web && npm ci && npm run build
+    startCommand: cd apps/web && npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://circlecue-api.onrender.com
+
+  - type: web
+    name: circlecue-api
+    env: python
+    buildCommand: cd apps/api && pip install -r requirements.txt
+    startCommand: cd apps/api && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: AI_PROVIDER
+        value: openai_compat
+      - key: AI_BASE_URL
+        sync: false
+      - key: AI_MODEL
+        value: gemma-3-4b-it
+      - key: AI_API_KEY
+        sync: false
+      - key: TEMPORAL_ADDRESS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  - type: worker
+    name: circlecue-worker
+    env: python
+    buildCommand: cd apps/api && pip install -r requirements.txt
+    startCommand: cd apps/api && python -m app.workflows.worker
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: TEMPORAL_ADDRESS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

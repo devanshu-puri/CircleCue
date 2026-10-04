@@ -42,12 +42,12 @@ API is called same-origin via Next.js rewrites (`/api/*` -> API service) to avoi
 `connections` {_id, a, b, status: pending|active|blocked, requested_by, created_at}
 `grants` {_id, owner, viewer, relationship_preset, cards{schedule,exam,live,travel,phone,safety,message: none|status|details}, notify{free_now,exam,travel,battery,schedule_change,message,safety: bool}, important: bool, reach_through: bool, expires_at, revoked_at, created_at}
 `share_links` {_id, code, owner, scope{card|activity_id}, expires_at, max_uses, uses, revoked_at}   (P1)
-`templates` {_id, owner, kind: SCHEDULE_SLOT|ROUTINE|SCENARIO_TIME, title, activity_type, days[], start_local, end_local, week_pattern: every|A|B, availability{calls,messages}, visibility, active_from, active_to}
-`exceptions` {_id, owner, template_id|null, date, kind: cancelled|moved|extended|early_end|day_off, new_start, new_end, note}
-`exam_sets` {_id, owner, date, items[{type: exam|break, subject?, start_local, end_local, calls_ok?}], pre_buffer_min=30, post_buffer_min=15, keep_schedule=false}
+`templates` {_id, owner, kind: SCHEDULE_SLOT|ROUTINE|SCENARIO_TIME, title, activity_type, days[], start_local, end_local, week_pattern: every|A|B, availability{calls,messages}, visibility, active_from, active_to, version=1}
+`exceptions` {_id, owner, template_id|null, date, kind: cancelled|moved|extended|early_end|day_off, new_start, new_end, note, version=1}
+`exam_sets` {_id, owner, date, items[{type: exam|break, subject?, start_local, end_local, calls_ok?}], pre_buffer_min=30, post_buffer_min=15, keep_schedule=false, version=1}
 `activities` {_id, owner, type, title, status, phase?, start_at, expected_end_at, availability{calls,messages}, metadata{}, visibility{mode: inherit|private_label|only, label_override, viewer_ids[]}, participants[], provenance{source, model?, confidence?, confirmed_at?}, check_on_me?{enabled, grace_min, escalate_min}, version, created_at, updated_at}
-`phone_state` {_id=owner, mode, calls, messages, battery_pct, battery_bucket, may_go_offline, declared_offline, until, last_shared_context{snapshot, shared_at}, updated_at}
-`messages` {_id, owner, text, template_key, activity_id?, audience[], expires_at, promise_at?, promise_done_at?, reactions[]}
+`phone_state` {_id=owner, mode, calls, messages, battery_pct, battery_bucket, may_go_offline, declared_offline, until, last_shared_context{snapshot, shared_at}, updated_at, version=1}
+`messages` {_id, owner, text, template_key, activity_id?, audience[], expires_at, promise_at?, promise_done_at?, reactions[], version=1}
 `scenarios` {_id, owner, name, enabled, source{kind, raw_text?, model?}, trigger, conditions[], effects[], audience, notification_rule, priority, last_fired_at}
 `connection_plans` {_id, owner, target, importance, rule, preferred_window, last_connected_at, snoozed_until, cooldown_min, nudges_today}
 `call_events` {_id, caller, callee, ts, outcome: picked|missed, features{...}, synthetic: bool}   (P1)
@@ -98,20 +98,20 @@ Gemma on DO GPU = AI core. Render = hosting. Temporal = durable timers. Atlas = 
 | Module | Tier | Status | Notes |
 |---|---|---|---|
 | M00 Scaffold | P0 | done | Scaffold project, FastAPI, Next.js, Docker, Sentry, Clock tests pass |
-| M01 Data model | P0 | todo | |
-| M02 Auth/profile/code | P0 | todo | |
-| M03 Connections+visibility | P0 | todo | |
-| M04 Activity engine+resolver | P0 | todo | |
-| M05 Cards | P0 | todo | |
-| M06 AI service | P0 | todo | |
-| M07 Scenario engine | P0 | todo | |
-| M08 Notifications+Temporal | P0 | todo | |
-| M09 Reminders (+TabPFN) | P0 basic / P1 | todo | |
-| M10 Frontend | P0 | todo | |
-| M11 Observability+hardening | P0 basic | todo | |
-| M12 Deploy | P0 | todo | |
+| M01 Data model | P0 | done | All 16 collections modelled, lifecycle transition table, AsyncMongoClient db.py, gen_types script |
+| M02 Auth/profile/code | P0 | done | Register, login, universal code NAME-XXXX, profile, code lookup, pause, export, delete |
+| M03 Connections+visibility | P0 | done | Directional grants, profile/state/timeline reads through `domain/visibility.py`, matching-owner/viewer checks, active-connection notification candidates, pause/revoke/private-label redaction; 25 tests pass |
+| M04 Activity engine+resolver | P0 | done | Pure resolver, overnight template expansion, exceptions/exam states, free-window rules, lifecycle service, injected time, next-boundary and snapshot handling; state and owner/viewer timeline routes; 40+ focused tests pass |
+| M05 Cards | P0 | done | CardSpec registry and generic owner CRUD over existing collections; bulk schedules/exceptions, exam season, live/travel lifecycle and return prefill, phone snapshots/buckets, message templates/reactions, optimistic versions, card-family visibility tests; P1 context packet stub returns 501 (owner: M08) |
+| M06 AI service | P0 | done | Typed drafts, verified OpenAI-compatible/Ollama structured-output adapters, rules fallback, timezone post-processing, connection-name matching, parse/confirm routes, Sentry span, privacy-safe invocation log, 60-case eval suite passes, live DO test stub |
+| M07 Scenario engine | P0 | done | Typed DSL, time-trigger resolver layer 5, versioned CRUD/dry-run, grant-intersected audience preview, AI confirmation, activity_state and battery event triggers wired into notifications pipeline, 6 scenario integration tests pass |
+| M08 Notifications+Temporal | P0 | done | Complete notification pipeline, ArrivalWatchWorkflow (grace, nudge, escalate, all-clear), UserTimelineWorkflow, PromiseWorkflow, Temporal test environment with time skipping, /dev/tick clock jump, Sentry workflow tagging, 139 tests pass |
+| M09 Reminders (+TabPFN) | P0 basic / P1 | done | Connection reminder evaluation (cadence rules, 2/day cap, 4h cooldown, snooze, dedupe); PickupPredictor heuristic stub + TabPFN adapter stub; REST API /reminders/plans + /check + /predict/pickup; 5 tests pass |
+| M10 Frontend | P0 | done | Complete Next.js PWA with Apple-style design tokens, auth, dashboard, AI quick compose sheet, people circle + state viewer, alerts + grant permissions editor, schedule, exam, travel with Arrival Watch, messages, and profile management; 15 static routes compile with zero TypeScript errors |
+| M11 Observability+hardening | P0 | done | Rate limiter tests, X-Frame-Options/nosniff/strict-referrer security headers middleware, HTML text sanitization, Sentry error endpoint |
+| M12 Deploy | P0 | done | render.yaml blueprint (web, api, worker), docker-compose.local.yml with Mongo/Temporal/Ollama, complete .env.example with DO GPU / Atlas configuration |
 | M13 Tinker | P2 | todo | |
-| M14 Demo+docs+submission | P0 | todo | |
+| M14 Demo+docs+submission | P0 | done | seed_demo.py (httpx, 10-step seeder: Arjun+Priya+connection+grants+schedule+exam+travel+plan+phone), SMOKE.md M09 section, full SUBMISSION.md for Hacktoberfest 2026 |
 
 ## 9. Decision Log (append only)
 - D1: Arrival Watch promoted to P0 (best Temporal fit, low cost).
@@ -126,4 +126,8 @@ Gemma on DO GPU = AI core. Render = hosting. Temporal = durable timers. Atlas = 
 - D10: MVP is light-dominant; no system dark mode; dark tiles are semantic (busy).
 - D11: Mobile bottom tab bar reuses `floating-sticky-bar` styling.
 - D12: Loading = parchment skeleton blocks (no shimmer gradient); empty = lead-airy sentence + one pill CTA.
+- D13: The untyped `last_shared_context` packet is exposed only to an active viewer with `safety: details`; lower card grants cannot safely redact its arbitrary snapshot fields.
+- D14: M05 adds `version=1` to mutable non-activity card documents so generic PATCH/DELETE operations can use optimistic concurrency without adding collections.
+- D15: M08 ensures safety notifications (ARRIVAL_MISSING, ALL_CLEAR, URGENT_OVERRIDE) bypass viewer daily rate limits and quiet hours.
+- D16: M08 implements /dev/tick endpoint for deterministic demo clock jumps and boundary triggers in non-production environments.
 - Design: `design/DESIGN.md` provided by user (Apple-style). Availability maps to tile surface (light = reachable, dark = busy) always paired with text + icon.

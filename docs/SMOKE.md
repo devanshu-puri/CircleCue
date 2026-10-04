@@ -1,2 +1,75 @@
 # SMOKE Test Procedures
 Manual smoke steps for verification.
+
+## M03: Connections and grants
+1. Register two users, A and B, and copy B's user code.
+2. As A, call `POST /connections/request` with B's code. Confirm the connection is pending.
+3. As B, accept the connection. Confirm no grant was created automatically.
+4. As B, request `GET /state/{A}`. Confirm state fields are null while no directional grant exists.
+5. As A, call `PUT /grants/{B}` with `{"cards":{"travel":"status"}}`. Confirm outgoing grants show the travel status permission and incoming grants for B show the same permission.
+6. As B, request `GET /state/{A}`. Confirm travel status is visible but destination, companion, and vehicle details are absent.
+7. As A, call `DELETE /grants/{B}`. Repeat the state request as B and confirm all projected context is unavailable immediately.
+8. Grant access again, then block or remove the connection. Confirm all grants are revoked and B cannot read A's state.
+
+## M04: Resolver and timelines
+1. Seed an owner routine and a Saturday `CLASS` template from 09:00 to 10:00 in `Asia/Kolkata`; set calls to `no` and visibility to `private_label` with label `Personal`.
+2. Call `GET /state/me` at a time inside the slot. Confirm the resolved activity is the class and calls are unavailable.
+3. Call `GET /timeline?date=2026-10-03` as the owner. Confirm the real title and UTC-converted boundaries are returned.
+4. Grant a connected viewer schedule `status` access. Call `GET /timeline/{owner_id}?date=2026-10-03` as that viewer; confirm the label is `Personal`, timing and call status remain visible, and detail fields are absent.
+5. Change the slot with a date exception and repeat the timeline request. Confirm the exception is reflected without storing a separate resolved-state record.
+6. Set an activity expected end in the past and resolve again. Confirm it is ignored and the schedule/routine layer becomes current.
+7. Set a sharing pause with an expiry. Confirm it is active before `until` and ignored after `until` using the injected/demo clock.
+
+## M05: Cards
+1. Register an owner and create a schedule slot with `POST /cards/schedule`; confirm the server sets the owner and `SCHEDULE_SLOT` kind.
+2. Read `GET /cards/schedule`, then resolve `GET /timeline?date=2026-10-03`; confirm the created slot appears.
+3. Update the slot with its current `version`, then retry with the stale version and confirm a 409 response. Delete using the latest version.
+4. Bulk-save the timetable at `PUT /cards/schedule/bulk`, including current versions for existing slots. Confirm omitted owner slots are removed and stale versions return 409.
+5. Create a date exception at `POST /cards/schedule/exceptions`; confirm it appears in `GET /cards/schedule/exceptions` and changes the expanded timeline.
+6. Create an exam set with two exams; call `GET /cards/exam/season` and confirm the date is marked as a two-exam day.
+7. Create a live activity, update it with its current version, and confirm it transitions to `CHANGED`; retry the previous version and confirm 409.
+8. Create a planned travel card, change it to `ACTIVE`/`travelling`, then update its ETA. Confirm it moves to `CHANGED`/`delayed` without creating a second trip.
+9. Set the phone battery to 5% or `may_go_offline=true`; confirm the stored bucket and timestamped frozen context are present.
+10. Create a message from a quick template, grant message-details access, and react as an audience member. Confirm unconnected/ungranted audiences and stale reaction versions are rejected.
+11. Call `POST /cards/safety/context`; confirm it returns 501 until the expiring P1 packet flow is implemented by M08.
+
+## M06: AI drafts
+1. Register an owner in `Asia/Kolkata`; connect a second account and add a schedule template.
+2. Call `POST /ai/parse` with `{"text":"studying till 8, no calls","mode":"activity"}`. Confirm an editable activity draft, resolved UTC end time, `no` calls, and one `ai_invocations` record; confirm no activity was stored.
+3. Parse `Going home with Rahul, reach in 40 min, battery 5%` with Rahul connected. Confirm travel and phone drafts, relative ETA resolved by code, and the companion linked by owner connection only.
+4. Parse with duplicate connected first names; confirm the companion remains unresolved and a question is returned.
+5. Confirm the activity draft through `POST /ai/confirm`; verify provenance is `ai_parsed_user_confirmed`. Repeat as another account and confirm it is rejected.
+6. Set `ai_prefs.store_raw=true`, parse again, and confirm raw text is recorded only for that owner. Restore false and verify later invocations omit it.
+7. Stop the model endpoint while `AI_PROVIDER=ollama` or `openai_compat`; confirm the rules provider still returns a draft. Review Sentry spans for provider/model/timing/schema/intent metadata and verify no text is attached.
+
+## M07: Time scenarios
+1. Parse and confirm `Every Friday 7-10 I play cricket, don't notify people I'm available`.
+2. Call `GET /scenarios`; confirm a time trigger, `set_activity` effect, and `suppress_notifications` effect were saved.
+3. Call `POST /scenarios/{id}/dry-run`; confirm next window, effect summary, and only viewers with the needed card grant in its audience.
+4. Add an audience member without that grant; confirm dry-run warns they are excluded and does not create a grant.
+5. Disable the scenario with its current version and resolve during its former window; confirm the scenario no longer wins layer 5.
+
+## M08: Notifications and Temporal Workflows
+1. Register owner and viewer. Connect mutually and grant `cards: {exam: "status"}, notify: {exam: true}`.
+2. Create an exam set with exam from 09:00 to 11:00 and break from 11:00 to 11:30.
+3. Advance clock via `POST /dev/tick` to 11:00:00 (break boundary). Confirm `EXAM_BREAK` notification is delivered to the viewer with suggested action.
+4. Call `GET /notifications` as the viewer to confirm receipt. Call `POST /notifications/{id}/read` to mark read, and `POST /notifications/{id}/action` to set chosen action.
+5. In another session, start travelling with `check_on_me: {enabled: true, grace_min: 2, escalate_min: 2}`.
+6. Skip time past grace: confirm owner receives `ARRIVAL_MISSING` nudge ("Did you arrive?").
+7. Skip time past escalate: confirm safety-granted viewer receives `ARRIVAL_MISSING` notification (bypassing quiet hours and daily rate limit).
+8. Send late `arrived` signal or transition activity to `arrived`: confirm `ALL_CLEAR` notification is generated and delivered to viewer ("Arrival confirmed. All good.").
+9. Create a message with `promise_at`: verify `PromiseWorkflow` triggers `PROMISE_DUE` owner reminder if not marked done within 5 minutes.
+
+## M09: Connection Reminders
+
+1. Register an owner. Create a connection plan via `POST /reminders/plans` with `{"target": "<peer_id>", "importance": "high", "rule": "weekly"}`. Confirm `201 Created` with `plan_id`.
+2. Simulate 8 days elapsed since last contact: directly set `last_connected_at` to 8 days ago in the plan (via MongoDB or seed script), or use `POST /reminders/plans/{id}/connected` then manually update the timestamp.
+3. Call `POST /reminders/check` as the owner. Confirm:
+   - Response has `evaluated_count: 1`
+   - One `CONNECTION_REMINDER` notification exists for the owner in `GET /notifications`
+   - Notification text mentions the target's name
+4. Call `POST /reminders/check` again **immediately**. Confirm `evaluated_count: 0` (same-day 4-hour cooldown is enforced).
+5. Call `POST /reminders/plans/{id}/snooze` with `{"days": 3}`. Call `POST /reminders/check` again. Confirm `evaluated_count: 0` (snoozed).
+6. Call `POST /reminders/plans/{id}/connected`. Confirm `status: "connected"` and `last_connected_at` is updated. Verify `POST /reminders/check` returns 0 (not due yet for a weekly plan).
+7. Test pickup predictor: `POST /predict/pickup` with `{"reachability_calls": "no"}` → confirm `probability <= 0.10`.
+8. `POST /predict/pickup` with `{"reachability_calls": "ok", "local_hour": 14, "battery_bucket": "ok"}` → confirm `probability >= 0.70`.

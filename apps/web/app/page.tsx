@@ -1,19 +1,397 @@
-import React from "react";
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Chip,
+  Footer,
+  GlobalNav,
+  PillButton,
+  SearchInput,
+  SubNavFrosted,
+  Tile,
+  UtilityCard,
+  BottomSheet,
+  ProvenanceCapsule,
+  SkeletonBlock,
+  BottomNav,
+} from "@/components/ui";
+import {
+  getMyState,
+  getNotifications,
+  subscribeToNotifications,
+  parseText,
+  confirmDraft,
+  type NotificationItem,
+  type ViewerState,
+  type ParseResult,
+} from "@/lib/api";
+import { useRequireAuth } from "@/lib/auth";
+
+function resolveStatus(state: ViewerState | null) {
+  if (!state) {
+    return {
+      title: "Shared status",
+      detail: "Loading live context...",
+      tone: "light" as const,
+      chips: ["Available"],
+    };
+  }
+
+  const reachability = state.reachability ?? {};
+  const calls = reachability.calls ?? "ok";
+  const isBusy = calls === "no" || calls === "prefer_not";
+
+  const activity = state.activity as Record<string, any> | null | undefined;
+  const title = activity?.label ?? activity?.type ?? (isBusy ? "Busy" : "Available");
+
+  let detail = reachability.reason || (calls === "no" ? "Calls: not now" : (calls === "prefer_not" ? "Calls: prefer not" : "Calls: ok"));
+  if (reachability.free_in_min) {
+    detail = `${detail} · Free in ~${reachability.free_in_min}m`;
+  } else if (reachability.until) {
+    detail = `${detail} · until ${new Date(reachability.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  }
+
+  const chips = [
+    calls === "ok" ? "🟢 Reachable" : "🔴 Busy",
+    state.phone?.battery_pct ? `⚡ ${state.phone.battery_pct}%` : "⚡ Phone ok",
+    state.travel ? `✈️ ${state.travel.destination || "Travelling"}` : "🏠 At home",
+  ];
+
+  return {
+    title,
+    detail,
+    tone: isBusy ? ("dark" as const) : ("light" as const),
+    chips,
+    provenance: activity?.provenance,
+  };
+}
 
 export default function HomePage() {
+  const { user } = useRequireAuth();
+  const [state, setState] = useState<ViewerState | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Quick composer state
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeText, setComposeText] = useState("");
+  const [parseLoading, setParseLoading] = useState(false);
+  const [parsedDraft, setParsedDraft] = useState<ParseResult | null>(null);
+  const [missingAnswers, setMissingAnswers] = useState<Record<string, string>>({});
+  const [confirming, setConfirming] = useState(false);
+  const [composeSuccess, setComposeSuccess] = useState(false);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [nextState, nextNotifications] = await Promise.all([getMyState(), getNotifications()]);
+      setState(nextState);
+      setNotifications(nextNotifications);
+      setError(null);
+    } catch (caught: any) {
+      setError(caught.message || "Unable to load state");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+
+    const stream = subscribeToNotifications((notification) => {
+      setNotifications((current) => [notification, ...current]);
+    });
+
+    return () => {
+      stream.close();
+    };
+  }, []);
+
+  const currentStatus = useMemo(() => resolveStatus(state), [state]);
+
+  async function handleParse() {
+    if (!composeText.trim()) return;
+    setParseLoading(true);
+    setParsedDraft(null);
+    setMissingAnswers({});
+    try {
+      const res = await parseText(composeText.trim());
+      setParsedDraft(res);
+    } catch (err: any) {
+      setError(err.message || "AI parse error");
+    } finally {
+      setParseLoading(false);
+    }
+  }
+
+  async function handleConfirm() {
+    if (!parsedDraft) return;
+    setConfirming(true);
+    try {
+      await confirmDraft(parsedDraft.items, parsedDraft.draft_id);
+      setComposeSuccess(true);
+      setTimeout(() => {
+        setComposeOpen(false);
+        setComposeText("");
+        setParsedDraft(null);
+        setComposeSuccess(false);
+        loadData();
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message || "Failed to confirm update");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-md space-y-4">
-        <h1 className="t-display-lg text-[var(--ink)]">CircleCue</h1>
-        <p className="t-lead-airy text-[var(--ink-muted-48)]">
-          Know what matters about the people you care about, without constantly calling or asking.
-        </p>
-        <div className="pt-4">
-          <span className="inline-block rounded-[var(--r-pill)] bg-[var(--surface-pearl)] px-4 py-2 t-caption text-[var(--primary)] border border-[var(--hairline)]">
-            System Online &bull; Local Mode
-          </span>
+    <div className="min-h-screen bg-[var(--canvas)] pb-28">
+      <GlobalNav alertCount={notifications.filter((n) => !n.read_at).length} />
+      <SubNavFrosted
+        title="Today"
+        action={
+          <PillButton variant="ghost" onClick={() => setComposeOpen(true)} className="!py-1 !px-3 text-[14px]">
+            + Update
+          </PillButton>
+        }
+      />
+
+      <main className="mx-auto flex max-w-[390px] flex-col gap-4 px-4 py-5">
+        {/* Main Status Tile (light = reachable, dark = busy) */}
+        <Tile tone={currentStatus.tone} className="p-5 transition-colors">
+          <div className="flex items-center justify-between">
+            <p className="text-[12px] font-normal uppercase leading-[1.0] tracking-[0.2em] text-[var(--body-muted)]">
+              {loading ? "Loading shared status..." : "Shared status"}
+            </p>
+            {currentStatus.provenance && (
+              <ProvenanceCapsule>
+                {currentStatus.provenance.source === "system_inferred"
+                  ? "System inferred"
+                  : currentStatus.provenance.source === "ai_parsed_user_confirmed"
+                  ? "AI verified"
+                  : "User shared"}
+              </ProvenanceCapsule>
+            )}
+          </div>
+
+          <h1
+            className={`mt-3 font-[family-name:var(--font-display)] text-[34px] font-semibold leading-[1.1] tracking-0 ${
+              currentStatus.tone === "dark" ? "text-[var(--body-on-dark)]" : "text-[var(--ink)]"
+            }`}
+          >
+            {currentStatus.title}
+          </h1>
+          <p
+            className={`mt-2 text-[17px] leading-[1.47] tracking-[-0.374px] ${
+              currentStatus.tone === "dark" ? "text-[var(--body-muted)]" : "text-[var(--ink-muted-80)]"
+            }`}
+          >
+            {error || currentStatus.detail}
+          </p>
+
+          <div className="mt-5 flex gap-2">
+            <PillButton variant="primary" onClick={() => setComposeOpen(true)}>
+              Share Update
+            </PillButton>
+            <Link href="/me">
+              <PillButton variant="ghost">Manage Cards</PillButton>
+            </Link>
+          </div>
+        </Tile>
+
+        {/* Quick Compose Input trigger */}
+        <Tile tone="parchment" className="p-4">
+          <div onClick={() => setComposeOpen(true)} className="cursor-pointer">
+            <SearchInput placeholder="What’s happening? (e.g. lab till 4, no calls)" />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {currentStatus.chips.map((chip) => (
+              <Chip key={chip} selected={true}>
+                {chip}
+              </Chip>
+            ))}
+          </div>
+        </Tile>
+
+        {/* 4 Cards Quick Grid */}
+        <Tile tone="light" className="p-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/me/schedule">
+              <UtilityCard
+                title="Schedule"
+                subtitle={state?.activity ? "Active slot" : "Routine"}
+                action={<span className="text-[12px] font-semibold text-[var(--primary)]">Edit</span>}
+              />
+            </Link>
+            <Link href="/me/exam">
+              <UtilityCard
+                title="Exams"
+                subtitle={state?.exam ? `${state.exam.exams_today || 1} today` : "No exam"}
+                action={<span className="text-[12px] font-semibold text-[var(--primary)]">View</span>}
+              />
+            </Link>
+            <Link href="/me/travel">
+              <UtilityCard
+                title="Travel"
+                subtitle={state?.travel ? state.travel.destination || "On route" : "At home"}
+                action={<span className="text-[12px] font-semibold text-[var(--primary)]">ETA</span>}
+              />
+            </Link>
+            <Link href="/me">
+              <UtilityCard
+                title="Phone"
+                subtitle={state?.phone ? (state.phone.mode === "silent" ? "Silent" : "Healthy") : "Healthy"}
+                action={<span className="text-[12px] font-semibold text-[var(--primary)]">Status</span>}
+              />
+            </Link>
+          </div>
+        </Tile>
+
+        {/* Today Timeline & Alerts */}
+        <Tile tone="parchment" className="p-4">
+          <div className="space-y-4">
+            <p className="text-[17px] font-semibold leading-[1.24] tracking-[-0.374px] text-[var(--ink)]">
+              Today
+            </p>
+            <div className="border-l-2 border-[var(--hairline)] pl-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[14px] font-semibold text-[var(--ink)]">
+                    {state?.next_boundary_at
+                      ? new Date(state.next_boundary_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                      : "Next boundary"}
+                  </p>
+                  <p className="text-[13px] text-[var(--ink-muted-48)]">
+                    {state?.activity ? "Next state boundary" : "Routine baseline active"}
+                  </p>
+                </div>
+                <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--ink-muted-48)]">
+                  {state?.activity ? "Active" : "Idle"}
+                </span>
+              </div>
+            </div>
+
+            <div className="border-l-2 border-[var(--hairline)] pl-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[14px] font-semibold text-[var(--ink)]">Alerts</p>
+                  <p className="text-[13px] text-[var(--ink-muted-48)]">
+                    {notifications.length ? `${notifications.length} recent alerts` : "No new alerts"}
+                  </p>
+                </div>
+                <Link href="/permissions" className="text-[12px] font-semibold text-[var(--primary)]">
+                  Open
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Tile>
+
+        <Footer />
+      </main>
+
+      {/* AI Quick Compose Bottom Sheet */}
+      <BottomSheet
+        isOpen={composeOpen}
+        onClose={() => {
+          setComposeOpen(false);
+          setParsedDraft(null);
+        }}
+        title="Quick Update"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-[13px] text-[var(--ink-muted-80)]">
+            Tell CircleCue in plain words (e.g. &quot;studying till 8, no calls&quot; or &quot;leaving for Delhi tomorrow 8am&quot;).
+          </p>
+
+          <textarea
+            rows={3}
+            value={composeText}
+            onChange={(e) => setComposeText(e.target.value)}
+            placeholder="What's happening?"
+            className="w-full rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] p-3 text-[17px] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-focus)]"
+          />
+
+          {!parsedDraft && (
+            <PillButton variant="primary" onClick={handleParse} disabled={parseLoading || !composeText.trim()}>
+              {parseLoading ? "Parsing with AI..." : "Parse Update"}
+            </PillButton>
+          )}
+
+          {parseLoading && <SkeletonBlock className="h-28 w-full" />}
+
+          {parsedDraft && (
+            <div className="flex flex-col gap-3 rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-semibold uppercase tracking-wider text-[var(--ink-muted-80)]">
+                  Draft Preview
+                </span>
+                <ProvenanceCapsule>AI parsed · confirm to save</ProvenanceCapsule>
+              </div>
+
+              <div className="text-[15px] font-medium text-[var(--ink)]">
+                Intent: <span className="font-semibold text-[var(--primary)]">{parsedDraft.intent}</span>
+              </div>
+
+              {parsedDraft.items.map((item, idx) => (
+                <div key={idx} className="rounded-[var(--r-sm)] bg-[var(--canvas)] p-3 text-[14px]">
+                  <p className="font-semibold">{item.title || item.kind}</p>
+                  {item.availability && (
+                    <p className="text-[12px] text-[var(--ink-muted-80)]">
+                      Calls: {item.availability.calls} · Messages: {item.availability.messages}
+                    </p>
+                  )}
+                  {item.destination && (
+                    <p className="text-[12px] text-[var(--ink-muted-80)]">Destination: {item.destination}</p>
+                  )}
+                </div>
+              ))}
+
+              {parsedDraft.missing.length > 0 && (
+                <div className="flex flex-col gap-2 mt-2">
+                  <p className="text-[13px] font-semibold text-[var(--ink)]">Missing details:</p>
+                  {parsedDraft.missing.map((m) => (
+                    <div key={m.field} className="flex flex-col gap-1">
+                      <span className="text-[12px] text-[var(--ink-muted-80)]">{m.question}</span>
+                      <input
+                        type="text"
+                        placeholder="Provide details..."
+                        value={missingAnswers[m.field] || ""}
+                        onChange={(e) =>
+                          setMissingAnswers({ ...missingAnswers, [m.field]: e.target.value })
+                        }
+                        className="rounded-[var(--r-sm)] border border-[var(--hairline)] bg-[var(--canvas)] px-2 py-1 text-[14px]"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {composeSuccess ? (
+                <p className="text-center font-semibold text-[var(--primary)]">✓ Saved and active!</p>
+              ) : (
+                <div className="flex gap-2 mt-2">
+                  <PillButton variant="primary" onClick={handleConfirm} disabled={confirming} className="flex-1">
+                    {confirming ? "Saving..." : "Confirm & Apply"}
+                  </PillButton>
+                  <PillButton
+                    variant="ghost"
+                    onClick={() => {
+                      setParsedDraft(null);
+                    }}
+                  >
+                    Reset
+                  </PillButton>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      </BottomSheet>
+
+      <BottomNav current="home" />
     </div>
   );
 }
