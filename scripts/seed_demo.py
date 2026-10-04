@@ -45,11 +45,11 @@ def main():
     args = parser.parse_args()
     base = args.base_url.rstrip("/")
 
-    print(f"\n🌱 CircleCue Demo Seed — Target: {base}\n")
+    print(f"\n CircleCue Demo Seed  Target: {base}\n")
 
     client = httpx.Client(base_url=base, timeout=15)
 
-    # ─── Register Arjun ───────────────────────────────────────────────────────
+    #  Register Arjun 
     print("1/10  Registering Arjun Kumar...")
     try:
         arjun_reg = client.post("/auth/register", json={
@@ -62,7 +62,7 @@ def main():
         arjun = arjun_reg.json()
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (409, 400):
-            print("     ⚠ Arjun already exists — logging in instead")
+            print("      Arjun already exists  logging in instead")
             arjun_login = client.post("/auth/login", json={
                 "email": "arjun@demo.circlecue.app",
                 "password": "demo-password-arjun",
@@ -95,9 +95,9 @@ def main():
         r.raise_for_status()
         return r.json()
 
-    print(f"     ✓ Arjun: id={arjun_id}, code={arjun_code}")
+    print(f"      Arjun: id={arjun_id}, code={arjun_code}")
 
-    # ─── Register Priya ───────────────────────────────────────────────────────
+    #  Register Priya 
     print("2/10  Registering Priya Singh...")
     try:
         priya_reg = client.post("/auth/register", json={
@@ -110,7 +110,7 @@ def main():
         priya = priya_reg.json()
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (409, 400):
-            print("     ⚠ Priya already exists — logging in instead")
+            print("      Priya already exists  logging in instead")
             priya_login = client.post("/auth/login", json={
                 "email": "priya@demo.circlecue.app",
                 "password": "demo-password-priya",
@@ -141,19 +141,19 @@ def main():
         r.raise_for_status()
         return r.json()
 
-    print(f"     ✓ Priya: id={priya_id}, code={priya_code}")
+    print(f"      Priya: id={priya_id}, code={priya_code}")
 
-    # ─── Connect Arjun → Priya ────────────────────────────────────────────────
+    #  Connect Arjun  Priya 
     print("3/10  Establishing mutual connection...")
     try:
         conn_req = arjun_post("/connections/request", {"user_code": priya_code})
         conn_id = conn_req.get("id") or conn_req.get("_id")
         # Priya accepts
         priya_post(f"/connections/{conn_id}/accept", {})
-        print(f"     ✓ Connection active: {conn_id}")
+        print(f"      Connection active: {conn_id}")
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (409, 400, 422):
-            print("     ⚠ Already connected — continuing")
+            print("      Already connected  continuing")
             # look up existing connection id
             conn_list = client.get("/connections", cookies=arjun_cookies)
             conns = conn_list.json() if conn_list.status_code == 200 else []
@@ -162,12 +162,12 @@ def main():
                  if c.get("status") == "active"),
                 None,
             )
-            print(f"     ✓ Using existing connection: {conn_id}")
+            print(f"      Using existing connection: {conn_id}")
         else:
             raise
 
-    # ─── Arjun grants Priya detailed access ──────────────────────────────────
-    print("4/10  Setting up Arjun → Priya grants...")
+    #  Arjun grants Priya detailed access 
+    print("4/10  Setting up Arjun  Priya grants...")
     arjun_put(f"/grants/{priya_id}", {
         "relationship_preset": "friend",
         "cards": {
@@ -189,7 +189,7 @@ def main():
         "important": True,
         "reach_through": False,
     })
-    print("     ✓ Grants set")
+    print("      Grants set")
 
     # Priya grants Arjun schedule + live status
     priya_put(f"/grants/{arjun_id}", {
@@ -200,11 +200,11 @@ def main():
         },
         "notify": {"free_now": True},
     })
-    print("     ✓ Priya → Arjun grants set")
+    print("      Priya  Arjun grants set")
 
-    # ─── Arjun's schedule templates ──────────────────────────────────────────
+    #  Arjun's schedule templates 
     print("5/10  Creating Arjun's schedule templates...")
-    # Mon/Wed/Fri Engineering Lecture (CLASS → valid for schedule card)
+    # Mon/Wed/Fri Engineering Lecture (CLASS  valid for schedule card)
     arjun_post("/cards/schedule", {
         "title": "Engineering Lecture",
         "activity_type": "CLASS",
@@ -214,7 +214,7 @@ def main():
         "end_local": "11:00",
         "availability": {"calls": "no", "messages": "later"},
     })
-    # Mon/Wed Lab session (LAB → valid for schedule card)
+    # Mon/Wed Lab session (LAB  valid for schedule card)
     arjun_post("/cards/schedule", {
         "title": "Lab Session",
         "activity_type": "LAB",
@@ -224,9 +224,9 @@ def main():
         "end_local": "22:00",
         "availability": {"calls": "prefer_not", "messages": "ok"},
     })
-    print("     ✓ Schedule templates created")
+    print("      Schedule templates created")
 
-    # ─── Arjun's exam set (Oct 5) ─────────────────────────────────────────────
+    #  Arjun's exam set (Oct 5) 
     print("6/10  Creating Arjun's exam set for Oct 5...")
     arjun_post("/cards/exam/season", {
         "date": "2026-10-05",
@@ -243,9 +243,9 @@ def main():
         "post_buffer_min": 15,
         "keep_schedule": False,
     })
-    print("     ✓ Exam set created")
+    print("      Exam set created")
 
-    # ─── Arjun's active travel activity ──────────────────────────────────────
+    #  Arjun's active travel activity 
     print("7/10  Creating Arjun's active travel to Delhi...")
     now_utc = datetime.now(timezone.utc)
     eta_utc = (now_utc + timedelta(hours=6, minutes=30)).replace(microsecond=0)
@@ -273,9 +273,9 @@ def main():
         "provenance": {"source": "user_shared"},
     })
     travel_id = travel.get("id") or travel.get("_id") or travel.get("record", {}).get("_id")
-    print(f"     ✓ Travel activity: id={travel_id}, ETA={eta_utc.isoformat()}")
+    print(f"      Travel activity: id={travel_id}, ETA={eta_utc.isoformat()}")
 
-    # ─── Arjun's connection plan for Priya ───────────────────────────────────
+    #  Arjun's connection plan for Priya 
     print("8/10  Adding connection reminder plan for Priya...")
     arjun_post("/reminders/plans", {
         "target": priya_id,
@@ -283,9 +283,9 @@ def main():
         "rule": "weekly",
         "cooldown_min": 1440,
     })
-    print("     ✓ Connection plan created")
+    print("      Connection plan created")
 
-    # ─── Priya's morning routine ──────────────────────────────────────────────
+    #  Priya's morning routine 
     print("9/10  Creating Priya's routine...")
     priya_post("/cards/schedule", {
         "title": "Morning Routine",
@@ -296,9 +296,9 @@ def main():
         "end_local": "09:00",
         "availability": {"calls": "prefer_not", "messages": "ok"},
     })
-    print("     ✓ Priya's routine created")
+    print("      Priya's routine created")
 
-    # ─── Phone state for Arjun (travelling, low battery) ─────────────────────
+    #  Phone state for Arjun (travelling, low battery) 
     print("10/10 Setting Arjun's phone state (travelling, low battery)...")
     arjun_post("/cards/phone", {
         "mode": "normal",
@@ -307,11 +307,11 @@ def main():
         "battery_pct": 28,
         "may_go_offline": False,
     })
-    print("     ✓ Phone state set")
+    print("      Phone state set")
 
-    # ─── Summary ──────────────────────────────────────────────────────────────
+    #  Summary 
     print("\n" + "=" * 60)
-    print("✅ SEED COMPLETE")
+    print(" SEED COMPLETE")
     print("=" * 60)
     print(f"\n  Arjun Kumar")
     print(f"    Email   : arjun@demo.circlecue.app")
@@ -325,12 +325,12 @@ def main():
     print(f"    ID      : {priya_id}")
     print("\n  Seeded data:")
     print("    - Mutual connection (active)")
-    print("    - Arjun → Priya: schedule/exam/travel/phone/safety grants")
+    print("    - Arjun  Priya: schedule/exam/travel/phone/safety grants")
     print("    - Arjun: 2 schedule templates (lecture MWF + study MW)")
-    print("    - Arjun: Exam set Oct 5 (Engineering Paper 09:00–12:00)")
+    print("    - Arjun: Exam set Oct 5 (Engineering Paper 09:0012:00)")
     print("    - Arjun: Active travel to Delhi, check-on-me enabled")
     print("    - Arjun: High-importance connection plan for Priya")
-    print("    - Priya: Morning routine (Tue/Thu 08:00–09:00)")
+    print("    - Priya: Morning routine (Tue/Thu 08:0009:00)")
     print("    - Arjun: Phone state (low battery, prefer_not calls)")
     print("\n  API: " + base)
     print("  Docs: " + base + "/docs  (development only)")
