@@ -101,3 +101,8 @@ Manual smoke steps for verification.
 6. Call `POST /reminders/plans/{id}/connected`. Confirm `status: "connected"` and `last_connected_at` is updated. Verify `POST /reminders/check` returns 0 (not due yet for a weekly plan).
 7. Test pickup predictor: `POST /predict/pickup` with `{"reachability_calls": "no"}` → confirm `probability <= 0.10`.
 8. `POST /predict/pickup` with `{"reachability_calls": "ok", "local_hour": 14, "battery_bucket": "ok"}` → confirm `probability >= 0.70`.
+
+## M14: Portable agent handoff and submission
+1. Start a fresh coding-agent session with `agent_pack/MASTER_PROMPT.md`; confirm it points to `agent_pack/01_SCENARIO_CATALOG.md` and the repo's active `AGENTS.md`/`docs/MEMORY.md` rather than asking it to repeat completed modules.
+2. Confirm the renamed `agent_pack/` has no agent-vendor-specific setup instructions; verify the start guide tells any coding agent to use the same project memory and to complete one module's Definition of Done at a time.
+3. Review `docs/SUBMISSION.md`, the DEV draft, and its challenge tag; confirm it contains no passwords, API keys, or unsaved-session embed.

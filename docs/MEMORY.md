@@ -111,7 +111,7 @@ Gemma on DO GPU = AI core. Render = hosting. Temporal = durable timers. Atlas = 
 | M11 Observability+hardening | P0 | done | Rate limiter tests, X-Frame-Options/nosniff/strict-referrer security headers middleware, HTML text sanitization, Sentry error endpoint |
 | M12 Deploy | P0 | done | render.yaml blueprint (web, api, worker), docker-compose.local.yml with Mongo/Temporal/Ollama, complete .env.example with DO GPU / Atlas configuration |
 | M13 Tinker | P2 | todo | |
-| M14 Demo+docs+submission | P0 | done | seed_demo.py (httpx, 10-step seeder: Arjun+Priya+connection+grants+schedule+exam+travel+plan+phone), SMOKE.md M09 section, full SUBMISSION.md for Hacktoberfest 2026 |
+| M14 Demo+docs+submission | P0 | done | seed_demo.py (httpx, 10-step seeder: Arjun+Priya+connection+grants+schedule+exam+travel+plan+phone), SMOKE.md M09 section, challenge submission draft, and reusable agent_pack for cross-agent handoff |
 
 ## 9. Decision Log (append only)
 - D20: Travel card UI uses the `/cards/travel` list contract and canonical Activity payload. Companion phone and expected return are additive TravelMeta fields; phone and return time are included only in travel DETAILS projections, while STATUS remains redacted.
@@ -125,6 +125,7 @@ Gemma on DO GPU = AI core. Render = hosting. Temporal = durable timers. Atlas = 
 - D28: Sharing resume calls `DELETE /me/pause` and reads the returned persisted state. Live activity notifications require active LIVE access plus the owner's explicit `notify.activity` opt-in; live activity edits emit the supported `ACTIVITY_EXTENDED` event, while completion does not announce a new activity.
 - D29: A newly accepted connection still has zero persisted access. The permission editor preselects all card DETAILS and alert toggles for a first grant as requested, but visibility changes only when the owner explicitly saves; they can remove any card or alert before saving.
 - D30: Notification inbox rows are ordered newest-first and identify the connected sender. The inbox uses the durable notification list as its initial snapshot and SSE for new rows; EventSource reconnect remains enabled and clients deduplicate by notification ID. People detail re-fetches permission-filtered viewer state every 10 seconds while open. Card events use notification kinds with per-card grant and alert opt-in checks; normal cap is 20 alerts per owner/viewer per rolling day, dedupe window remains 5 minutes, and safety events bypass both.
+- D31: The old `antigravity-pack/` is renamed to `agent_pack/` and made tool-neutral so model or context changes can hand off through the same versioned project rules, memory, decisions, design, and module prompts. Runtime source of truth remains root `AGENTS.md` and `docs/MEMORY.md`; migration details are recorded in `docs/DECISIONS.md`.
 - D1: Arrival Watch promoted to P0 (best Temporal fit, low cost).
 - D2: Resolved-not-stored state; Temporal triggers only.
 - D3: AI output is a draft; user confirms before persistence or sharing.

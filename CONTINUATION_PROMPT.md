@@ -1,5 +1,5 @@
 # CircleCue — Full Continuation Prompt
-### Paste this ENTIRE message as your first message in the new Antigravity session
+### Paste this ENTIRE message at the start of a new AI coding-agent session
 
 ---
 

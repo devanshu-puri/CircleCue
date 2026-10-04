@@ -1,4 +1,4 @@
-# START HERE: Antigravity Build Pack
+# START HERE: CircleCue Agent Pack
 
 Working name: `{{APP_NAME}}` (placeholder; ideas: Kinwise, Nearby, Soon). Replace everywhere once chosen.
 
@@ -7,8 +7,7 @@ A private, permission-based life-context network for trusted people. Not social 
 "Know what matters about the people you care about, without constantly calling or asking."
 
 ## Hard deadline (verified)
-Submissions close **Mon Oct 5, 06:59 UTC = 12:29 PM IST**. Aim to submit by **10:30 AM IST** for buffer. Today is Sat Oct 3.
-That is roughly 36 hours of working time, so scope is tiered. Nothing below P0 may block P0.
+Submissions close **Mon Oct 5, 06:59 UTC = 12:29 PM IST**. Replace this date and the suggested timeline if reusing the pack for another event. Nothing below P0 may block P0.
 
 ## Files in this pack
 | File | Purpose |
@@ -19,10 +18,10 @@ That is roughly 36 hours of working time, so scope is tiered. Nothing below P0 m
 | `MASTER_PROMPT.md` | Full-system prompt: architecture, contracts, module order. Paste first. |
 | `modules/M00 ... M14` | One prompt per build module. Paste one at a time, in order. |
 
-## How to run it in Antigravity
-1. Create repo. Put `AGENTS.md` at root, `MEMORY.md` in `/docs/`. (If Antigravity has a rules/memory folder, mirror AGENTS.md there too.)
-2. Paste `MASTER_PROMPT.md`. Tell the agent: "Read it, read AGENTS.md and docs/MEMORY.md, confirm understanding in 10 lines, build nothing yet."
-3. Paste modules one at a time. After each: run its Definition of Done, commit, confirm MEMORY.md "Build Status" was updated.
+## How to use it with any coding agent
+1. Put `AGENTS.md` at the repository root and `MEMORY.md` in `/docs/`. If your agent has a separate rules or memory setting, point it to these same files rather than creating a competing source of truth.
+2. Start a session by providing `MASTER_PROMPT.md`. Ask the agent to read it, `AGENTS.md`, and `docs/MEMORY.md`, then summarize the product, constraints, and module order before editing.
+3. Provide one module prompt at a time. After each, run its Definition of Done, update the build status, and commit the completed module.
 4. Never skip M01 to M04: they are the spine. Everything else plugs into them.
 5. Design is supplied: put `design/DESIGN.md`, `design/APP_DESIGN_MAPPING.md`, `design/tokens.css` in the repo `/design` folder before M10.
 
@@ -57,4 +56,4 @@ Suggested clock: Sat = M00-M05 + M06 skeleton. Sun = M06-M08, M10, deploy. Mon e
 
 ## Your two real-world tasks (writing quality is weighted most)
 1. Give the app to a real person (your mom or the friend) before Mon morning. Ask one question: "What did this change for you?" Save the exact words.
-2. Capture the agent session (DevRelay/Entire if available) for the submission.
+2. Capture the agent session (for example, with DevRelay or Entire if available) for the submission.
