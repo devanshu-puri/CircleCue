@@ -130,6 +130,17 @@ export default function HomePage() {
     if (!parsedDraft) return;
     setConfirming(true);
     try {
+      const answeredMissing = parsedDraft.missing.filter((missing) => missingAnswers[missing.field]?.trim());
+      if (answeredMissing.length > 0) {
+        const addedDetails = answeredMissing
+          .map((missing) => `${missing.field}: ${missingAnswers[missing.field].trim()}`)
+          .join("; ");
+        const revised = await parseText(`${composeText.trim()}. Additional details: ${addedDetails}`);
+        setParsedDraft(revised);
+        setMissingAnswers({});
+        setError(null);
+        return;
+      }
       await confirmDraft(parsedDraft.items, parsedDraft.draft_id);
       setComposeSuccess(true);
       setTimeout(() => {
@@ -302,6 +313,7 @@ export default function HomePage() {
         title="Quick Update"
       >
         <div className="flex flex-col gap-4">
+          {error && <p role="alert" className="text-[14px] text-[var(--danger)]">{error}</p>}
           <p className="text-[13px] text-[var(--ink-muted-80)]">
             Tell CircleCue in plain words (e.g. &quot;studying till 8, no calls&quot; or &quot;leaving for Delhi tomorrow 8am&quot;).
           </p>
@@ -373,8 +385,13 @@ export default function HomePage() {
                 <p className="text-center font-semibold text-[var(--primary)]">✓ Saved and active!</p>
               ) : (
                 <div className="flex gap-2 mt-2">
-                  <PillButton variant="primary" onClick={handleConfirm} disabled={confirming} className="flex-1">
-                    {confirming ? "Saving..." : "Confirm & Apply"}
+                  <PillButton
+                    variant="primary"
+                    onClick={handleConfirm}
+                    disabled={confirming || (parsedDraft.missing.length > 0 && parsedDraft.missing.some((missing) => !missingAnswers[missing.field]?.trim()))}
+                    className="flex-1"
+                  >
+                    {confirming ? "Updating..." : parsedDraft.missing.length > 0 ? "Update Draft & Review" : "Confirm & Apply"}
                   </PillButton>
                   <PillButton
                     variant="ghost"

@@ -30,14 +30,17 @@ export default function ExamCardPage() {
   const [preBuffer, setPreBuffer] = useState(30);
   const [postBuffer, setPostBuffer] = useState(15);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingSet, setEditingSet] = useState<any | null>(null);
 
   async function loadExams() {
     setLoading(true);
     try {
       const res = await getCards("exam");
-      setExamSets(res.exam_sets || []);
-    } catch {
-      // Ignored
+      setExamSets(Array.isArray(res) ? res : res.exam_sets || []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load exams");
     } finally {
       setLoading(false);
     }
@@ -66,19 +69,40 @@ export default function ExamCardPage() {
         pre_buffer_min: Number(preBuffer),
         post_buffer_min: Number(postBuffer),
         keep_schedule: false,
+        ...(editingSet ? { version: editingSet.version || 1 } : {}),
       };
       await createCard("exam", payload);
       setModalOpen(false);
       setSubject("");
-      loadExams();
+      setEditingSet(null);
+      await loadExams();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save exam");
     } finally {
       setSaving(false);
     }
   }
 
+  function editExam(set: any) {
+    const firstExam = set.items?.find((item: any) => item.type === "exam") || set.items?.[0];
+    setEditingSet(set);
+    setExamDate(set.date);
+    setSubject(firstExam?.subject || "");
+    setStartTime(firstExam?.start_local || "10:00");
+    setEndTime(firstExam?.end_local || "13:00");
+    setPreBuffer(set.pre_buffer_min ?? 30);
+    setPostBuffer(set.post_buffer_min ?? 15);
+    setError(null);
+    setModalOpen(true);
+  }
+
   async function handleDeleteExam(id: string, version: number = 1) {
-    await deleteCard("exam", id, version);
-    loadExams();
+    try {
+      await deleteCard("exam", id, version);
+      await loadExams();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove exam");
+    }
   }
 
   return (
@@ -98,10 +122,11 @@ export default function ExamCardPage() {
           <p className="text-[13px] text-[var(--ink-muted-80)]">
             Configure exam sets with automatic silence buffers.
           </p>
-          <PillButton variant="primary" onClick={() => setModalOpen(true)} className="!py-1 !px-3 text-[14px]">
+          <PillButton variant="primary" onClick={() => { setEditingSet(null); setSubject(""); setExamDate(new Date().toISOString().split("T")[0]); setStartTime("10:00"); setEndTime("13:00"); setPreBuffer(30); setPostBuffer(15); setModalOpen(true); }} className="!py-1 !px-3 text-[14px]">
             + Add Exam
           </PillButton>
         </div>
+        {error && <p role="alert" className="text-[14px] text-[var(--danger)]">{error}</p>}
 
         <Tile tone="light" className="p-4">
           <h2 className="text-[16px] font-semibold text-[var(--ink)] mb-3">
@@ -132,6 +157,9 @@ export default function ExamCardPage() {
                       Buffers: -{set.pre_buffer_min}m / +{set.post_buffer_min}m
                     </p>
                   </div>
+                  <button type="button" onClick={() => editExam(set)} className="text-[13px] font-semibold text-[var(--primary)]">
+                    Edit
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteExam(set._id, set.version || 1)}
@@ -149,7 +177,7 @@ export default function ExamCardPage() {
       </main>
 
       {/* Add Exam Modal */}
-      <BottomSheet isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Schedule Exam">
+      <BottomSheet isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditingSet(null); }} title={editingSet ? "Edit Exam" : "Schedule Exam"}>
         <form onSubmit={handleCreateExam} className="flex flex-col gap-4">
           <InputField
             label="Subject / Exam Title"

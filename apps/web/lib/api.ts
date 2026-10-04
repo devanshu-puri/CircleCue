@@ -339,6 +339,13 @@ export async function createCard(cardType: string, payload: any): Promise<any> {
   });
 }
 
+export async function saveSchedule(templates: any[]): Promise<any> {
+  return fetchJson("/api/cards/schedule/bulk", {
+    method: "PUT",
+    body: JSON.stringify({ templates }),
+  });
+}
+
 export async function updateCard(cardType: string, cardId: string, payload: any): Promise<any> {
   return fetchJson(`/api/cards/${cardType}/${cardId}`, {
     method: "PATCH",

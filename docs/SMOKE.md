@@ -33,6 +33,11 @@ Manual smoke steps for verification.
 10. Create a message from a quick template, grant message-details access, and react as an audience member. Confirm unconnected/ungranted audiences and stale reaction versions are rejected.
 11. Call `POST /cards/safety/context`; confirm it returns 501 until the expiring P1 packet flow is implemented by M08.
 
+### Web card editor regression smoke
+1. Sign in and open `/me/schedule`; confirm existing schedule slots load. Add one slot and confirm it appears after save; edit/remove through the schedule controls and confirm changes remain after reload.
+2. Open `/me/exam`; confirm existing exam sets load. Add an exam, edit its subject/time/buffers, save, and confirm the same date's set updates after reload.
+3. Open Quick Update, parse text with a missing field (for example a travel destination), answer every missing question, choose **Update Draft & Review**, then confirm the refreshed draft. Confirm incomplete drafts cannot be applied and API errors are visible in the form.
+
 ## M06: AI drafts
 1. Register an owner in `Asia/Kolkata`; connect a second account and add a schedule template.
 2. Call `POST /ai/parse` with `{"text":"studying till 8, no calls","mode":"activity"}`. Confirm an editable activity draft, resolved UTC end time, `no` calls, and one `ai_invocations` record; confirm no activity was stored.

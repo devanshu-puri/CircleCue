@@ -15,8 +15,7 @@ import {
 } from "@/components/ui";
 import {
   getCards,
-  createCard,
-  deleteCard,
+  saveSchedule,
 } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 
@@ -33,6 +32,8 @@ export default function ScheduleCardPage() {
   const [endTime, setEndTime] = useState("11:00");
   const [callsOk, setCallsOk] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
 
   const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -40,9 +41,9 @@ export default function ScheduleCardPage() {
     setLoading(true);
     try {
       const res = await getCards("schedule");
-      setTemplates(res.templates || []);
-    } catch {
-      // Ignored
+      setTemplates(Array.isArray(res) ? res : res.templates || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load schedule");
     } finally {
       setLoading(false);
     }
@@ -66,6 +67,7 @@ export default function ScheduleCardPage() {
     setSaving(true);
     try {
       const newTemplate = {
+        ...(editingTemplate || {}),
         kind: "SCHEDULE_SLOT",
         title,
         activity_type: "LECTURE",
@@ -79,21 +81,39 @@ export default function ScheduleCardPage() {
         },
         visibility: { mode: "inherit" },
       };
-      await createCard("schedule", {
-        templates: [...templates, newTemplate],
-      });
+      await saveSchedule([...templates, newTemplate]);
+      setError(null);
       setModalOpen(false);
       setTitle("");
-      loadSchedule();
+      setEditingTemplate(null);
+      await loadSchedule();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save schedule slot");
     } finally {
       setSaving(false);
     }
   }
 
+  function editSlot(template: any) {
+    setEditingTemplate(template);
+    setTitle(template.title || "");
+    setDays(template.days || []);
+    setStartTime(template.start_local || "09:00");
+    setEndTime(template.end_local || "11:00");
+    setCallsOk(template.availability?.calls === "ok");
+    setError(null);
+    setModalOpen(true);
+  }
+
   async function handleDeleteSlot(idx: number) {
-    const nextTemplates = templates.filter((_, i) => i !== idx);
-    await createCard("schedule", { templates: nextTemplates });
-    loadSchedule();
+    try {
+      const nextTemplates = templates.filter((_, i) => i !== idx);
+      await saveSchedule(nextTemplates);
+      setError(null);
+      await loadSchedule();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove schedule slot");
+    }
   }
 
   return (
@@ -113,10 +133,11 @@ export default function ScheduleCardPage() {
           <p className="text-[13px] text-[var(--ink-muted-80)]">
             Define recurring lecture and study time blocks.
           </p>
-          <PillButton variant="primary" onClick={() => setModalOpen(true)} className="!py-1 !px-3 text-[14px]">
+          <PillButton variant="primary" onClick={() => { setEditingTemplate(null); setTitle(""); setDays([0, 1, 2, 3, 4]); setStartTime("09:00"); setEndTime("11:00"); setCallsOk(false); setModalOpen(true); }} className="!py-1 !px-3 text-[14px]">
             + Add Slot
           </PillButton>
         </div>
+        {error && <p role="alert" className="text-[14px] text-[var(--danger)]">{error}</p>}
 
         <Tile tone="light" className="p-4">
           <h2 className="text-[16px] font-semibold text-[var(--ink)] mb-3">
@@ -133,7 +154,7 @@ export default function ScheduleCardPage() {
             <div className="flex flex-col gap-3">
               {templates.map((t, idx) => (
                 <div
-                  key={idx}
+                  key={t._id || idx}
                   className="flex items-center justify-between rounded-[var(--r-md)] border border-[var(--hairline)] bg-[var(--canvas-parchment)] p-3"
                 >
                   <div>
@@ -145,6 +166,9 @@ export default function ScheduleCardPage() {
                       Calls: {t.availability?.calls || "no"}
                     </p>
                   </div>
+                  <button type="button" onClick={() => editSlot(t)} className="text-[13px] font-semibold text-[var(--primary)]">
+                    Edit
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteSlot(idx)}
@@ -162,7 +186,7 @@ export default function ScheduleCardPage() {
       </main>
 
       {/* Add Slot Bottom Sheet */}
-      <BottomSheet isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add Schedule Slot">
+      <BottomSheet isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditingTemplate(null); }} title={editingTemplate ? "Edit Schedule Slot" : "Add Schedule Slot"}>
         <form onSubmit={handleAddSlot} className="flex flex-col gap-4">
           <InputField
             label="Title / Subject"
@@ -220,7 +244,7 @@ export default function ScheduleCardPage() {
           </div>
 
           <PillButton type="submit" variant="primary" disabled={saving} className="w-full mt-2">
-            {saving ? "Saving slot..." : "Save Schedule Slot"}
+            {saving ? "Saving slot..." : editingTemplate ? "Update Schedule Slot" : "Save Schedule Slot"}
           </PillButton>
         </form>
       </BottomSheet>
